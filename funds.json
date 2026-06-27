@@ -35,7 +35,7 @@
     { "symbol": "VTV",  "name": "Large Cap Value" },
     { "symbol": "VBK",  "name": "Small Cap Growth" },
     { "symbol": "MDYG", "name": "Mid Cap Growth" },
-    { "symbol": "IWM",  "name": "Small Caps" }
+    { "symbol": "IWM",  "name": "Small Caps" },
     { "symbol": "IBIT",  "name": "Crypto" }
   ]
 }
