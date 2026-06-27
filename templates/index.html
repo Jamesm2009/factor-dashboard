@@ -490,8 +490,6 @@ function buildDatasets() {
 
     if (pts.length === 0) return;
 
-    const color = COLORS[idx % COLORS.length];
-
     datasets.push({
       label: item.symbol + '_trail',
       data: pts,
