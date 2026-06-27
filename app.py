@@ -37,37 +37,48 @@ def load_funds():
         return json.load(f)
 
 
-# ── Redis helpers ─────────────────────────────────────────────────────────────
+# ── Redis helpers (pipeline endpoint) ─────────────────────────────────────────
 
 def redis_set(key, value, ex_seconds=90000):
+    """Store JSON value via Upstash pipeline. ex_seconds=90000 ≈ 25 hours."""
     if not REDIS_URL or not REDIS_TOKEN:
         return False
     try:
         payload = json.dumps(value)
         r = requests.post(
-            f"{REDIS_URL}/set/{key}",
-            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
-            json={"value": payload, "ex": ex_seconds},
-            timeout=10,
+            f"{REDIS_URL}/pipeline",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}",
+                     "Content-Type": "application/json"},
+            data=json.dumps([["SET", key, payload, "EX", str(ex_seconds)]]),
+            timeout=15,
         )
-        return r.status_code == 200
+        ok = r.status_code == 200
+        if not ok:
+            print(f"  Redis SET failed: {r.status_code} {r.text[:200]}")
+        return ok
     except Exception as e:
         print(f"  Redis SET error: {e}")
         return False
 
 
 def redis_get(key):
+    """Retrieve and parse JSON value from Redis."""
     if not REDIS_URL or not REDIS_TOKEN:
         return None
     try:
-        r = requests.get(
-            f"{REDIS_URL}/get/{key}",
-            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
-            timeout=10,
+        r = requests.post(
+            f"{REDIS_URL}/pipeline",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}",
+                     "Content-Type": "application/json"},
+            data=json.dumps([["GET", key]]),
+            timeout=15,
         )
         if r.status_code != 200:
             return None
-        result = r.json().get("result")
+        results = r.json()
+        if not results or not results[0]:
+            return None
+        result = results[0].get("result")
         if result is None:
             return None
         return json.loads(result)
@@ -81,8 +92,10 @@ def redis_del(key):
         return
     try:
         requests.post(
-            f"{REDIS_URL}/del/{key}",
-            headers={"Authorization": f"Bearer {REDIS_TOKEN}"},
+            f"{REDIS_URL}/pipeline",
+            headers={"Authorization": f"Bearer {REDIS_TOKEN}",
+                     "Content-Type": "application/json"},
+            data=json.dumps([["DEL", key]]),
             timeout=10,
         )
     except Exception:
@@ -329,13 +342,38 @@ def index():
 
 @app.route("/refresh")
 def refresh():
+    global _started
     redis_del(REDIS_KEY)
     with _lock:
         cache["sectors"] = []
         cache["factors"] = []
         cache["phase"]   = 0
+        cache["progress"] = "Starting..."
+        cache["error"]   = None
+    _started = False
     trigger_update()
+    _started = True
     return jsonify({"status": "refresh started — check /status"})
+
+
+@app.route("/redis-test")
+def redis_test():
+    """Diagnostic: round-trip write/read/delete to verify Redis connectivity."""
+    test_key = "factor_dash_test"
+    test_val = {"test": True, "ts": datetime.now(CT).isoformat()}
+    w = redis_set(test_key, test_val, ex_seconds=30)
+    r = redis_get(test_key)
+    redis_del(test_key)
+    return jsonify({
+        "redis_url_set": bool(REDIS_URL),
+        "redis_token_set": bool(REDIS_TOKEN),
+        "write_ok": w,
+        "read_back": r,
+        "cache_key": REDIS_KEY,
+        "cache_phase": cache["phase"],
+        "cache_sectors": len(cache.get("sectors", [])),
+        "cache_factors": len(cache.get("factors", [])),
+    })
 
 
 @app.route("/status")
