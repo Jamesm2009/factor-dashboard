@@ -1,0 +1,40 @@
+{
+  "sectors": [
+    { "symbol": "XLC",  "name": "Communication Services" },
+    { "symbol": "XLY",  "name": "Consumer Discretionary" },
+    { "symbol": "XLP",  "name": "Consumer Staples" },
+    { "symbol": "XLU",  "name": "Utilities" },
+    { "symbol": "XLRE", "name": "Real Estate" },
+    { "symbol": "XLF",  "name": "Financial" },
+    { "symbol": "XLB",  "name": "Materials" },
+    { "symbol": "XLI",  "name": "Industrials" },
+    { "symbol": "XLE",  "name": "Energy" },
+    { "symbol": "XLV",  "name": "Health Care" },
+    { "symbol": "XTN",  "name": "Transportation" },
+    { "symbol": "XLK",  "name": "Technology" }
+  ],
+  "factors": [
+    { "symbol": "MGK",  "name": "Mega Cap Growth" },
+    { "symbol": "GDX",  "name": "Gold Miners" },
+    { "symbol": "IVW",  "name": "S&P 500 Growth" },
+    { "symbol": "ARKK", "name": "Disruptive Tech" },
+    { "symbol": "EFA",  "name": "EAFE" },
+    { "symbol": "EEM",  "name": "Emerging Markets" },
+    { "symbol": "VYM",  "name": "High Dividend Yield" },
+    { "symbol": "SPLV", "name": "Low Beta (Low Vol.)" },
+    { "symbol": "PKW",  "name": "Buyback Achievers" },
+    { "symbol": "VEA",  "name": "Developed Markets" },
+    { "symbol": "MDYV", "name": "Mid Cap Value" },
+    { "symbol": "VBR",  "name": "Small Cap Value" },
+    { "symbol": "FDM",  "name": "Dow Jones MicroCap" },
+    { "symbol": "RSP",  "name": "Equal Weight S&P 500" },
+    { "symbol": "SPHB", "name": "High Beta" },
+    { "symbol": "VFQY", "name": "Vanguard U.S. Quality" },
+    { "symbol": "MTUM", "name": "Momentum" },
+    { "symbol": "MDY",  "name": "Mid Cap 400" },
+    { "symbol": "VTV",  "name": "Large Cap Value" },
+    { "symbol": "VBK",  "name": "Small Cap Growth" },
+    { "symbol": "MDYG", "name": "Mid Cap Growth" },
+    { "symbol": "IWM",  "name": "Small Caps" }
+  ]
+}

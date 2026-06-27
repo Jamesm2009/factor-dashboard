@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factor & Sector Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root {
+  --bg:      #0c1220;
+  --surface: #151d2e;
+  --card:    #1a2438;
+  --border:  #2a3650;
+  --text:    #e2e8f0;
+  --muted:   #7b8ba3;
+  --accent:  #3b82f6;
+  --header:  #0a0f1a;
+
+  /* score cell colors — contrarian: green = oversold (opportunity), red = overbought (caution) */
+  --s-deep-green: #0d6938;
+  --s-med-green:  #16a34a;
+  --s-light-green:#22c55e;
+  --s-neutral:    #374151;
+  --s-light-red:  #ef4444;
+  --s-med-red:    #dc2626;
+  --s-deep-red:   #991b1b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 13px; }
+
+/* ── Header ── */
+header {
+  background: var(--header);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  position: sticky; top: 0; z-index: 30;
+}
+.h-left h1 { font-size: 17px; font-weight: 700; letter-spacing: .3px; color: #f1f5f9; }
+.h-left .subtitle { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.h-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.badge { background: rgba(255,255,255,.07); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 11px; color: var(--muted); }
+.badge b { color: var(--text); }
+.btn-refresh { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.btn-refresh:hover { background: #2563eb; }
+
+/* ── Loading ── */
+.loading-banner {
+  background: #1e3a5f; color: #bfdbfe; padding: 10px 20px; font-size: 12.5px;
+  display: flex; align-items: center; gap: 12px; justify-content: center;
+}
+.error-banner { background: #7f1d1d; color: #fecaca; text-align: center; padding: 10px; font-size: 13px; font-weight: 600; }
+
+/* ── Tabs ── */
+.tab-bar {
+  display: flex; gap: 0; padding: 0 20px;
+  background: var(--surface); border-bottom: 2px solid var(--border);
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 3px solid transparent;
+  color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; padding: 10px 24px; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Content layout ── */
+.content {
+  display: flex; gap: 16px; padding: 16px 20px;
+  align-items: flex-start; min-height: calc(100vh - 140px);
+}
+.table-panel { flex: 1; min-width: 360px; }
+.chart-panel {
+  flex: 1; min-width: 420px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+  position: sticky; top: 60px;
+}
+
+@media (max-width: 960px) {
+  .content { flex-direction: column; }
+  .chart-panel { position: static; }
+}
+
+/* ── Table ── */
+.analysis-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--card); border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.analysis-table thead th {
+  background: #0f172a; color: var(--muted); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; padding: 8px 10px;
+  border-bottom: 2px solid var(--border); cursor: pointer; user-select: none;
+  white-space: nowrap;
+}
+.analysis-table thead th:hover { color: var(--text); }
+.analysis-table thead th.sorted-asc::after  { content: " ▲"; color: #fbbf24; }
+.analysis-table thead th.sorted-desc::after { content: " ▼"; color: #fbbf24; }
+.analysis-table tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .1s;
+}
+.analysis-table tbody tr:hover { background: rgba(59,130,246,.08); }
+
+.analysis-table td { padding: 7px 10px; white-space: nowrap; }
+td.sym { font-weight: 700; font-family: 'Courier New', monospace; font-size: 13px; color: var(--accent); }
+td.fname { font-weight: 500; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Score cells */
+td.score {
+  text-align: center; font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 12.5px; border-radius: 4px; min-width: 70px;
+  padding: 5px 8px;
+}
+.sc-6 { background: #064e2a; color: #86efac; }
+.sc-5 { background: #0d7a3f; color: #bbf7d0; }
+.sc-4 { background: #16a34a; color: #fff; }
+.sc-3 { background: #22c55e; color: #052e16; }
+.sc-0 { background: #374151; color: #d1d5db; }
+.sc0  { background: #374151; color: #d1d5db; }
+.sc3  { background: #f87171; color: #450a0a; }
+.sc4  { background: #ef4444; color: #fff; }
+.sc5  { background: #dc2626; color: #fecaca; }
+.sc6  { background: #991b1b; color: #fecaca; }
+
+/* Chart checkbox */
+td.chk { text-align: center; }
+td.chk input[type="checkbox"] {
+  width: 16px; height: 16px; cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* ── How it works bar ── */
+.how-it-works {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; margin-top: 12px;
+}
+.how-it-works h3 { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+.gradient-bar {
+  height: 12px; border-radius: 6px;
+  background: linear-gradient(to right, #064e2a, #16a34a, #22c55e, #6b7280, #ef4444, #dc2626, #991b1b);
+  position: relative;
+}
+.gradient-labels {
+  display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);
+  margin-top: 4px; padding: 0 2px;
+}
+.gradient-labels .center { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 700; color: var(--text); }
+.grad-desc {
+  display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 6px;
+}
+.grad-desc .buy  { color: #4ade80; font-weight: 600; }
+.grad-desc .sell { color: #f87171; font-weight: 600; }
+
+/* ── Chart panel ── */
+.chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.chart-container { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: 520px; }
+.tail-controls {
+  display: flex; align-items: center; gap: 8px; margin-top: 14px;
+  padding-top: 12px; border-top: 1px solid var(--border);
+}
+.tail-controls label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.tail-btn {
+  background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--muted); font-size: 12px; font-weight: 600; padding: 4px 12px;
+  cursor: pointer; transition: all .15s;
+}
+.tail-btn:hover { border-color: var(--accent); color: var(--text); }
+.tail-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Footer ── */
+footer {
+  text-align: center; padding: 16px 20px; color: var(--muted); font-size: 11px;
+  border-top: 1px solid var(--border); background: var(--surface); margin-top: 10px;
+}
+
+/* ── Quadrant legend ── */
+.quad-legend {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;
+  font-size: 10px; color: var(--muted);
+}
+.quad-legend .ql {
+  display: flex; align-items: center; gap: 4px;
+}
+.ql-swatch {
+  width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,.1);
+}
+</style>
+</head>
+<body>
+
+{% if error %}
+<div class="error-banner">⚠ Error: {{ error }}</div>
+{% endif %}
+
+{% if is_loading %}
+<div class="loading-banner">
+  <span>⏳</span>
+  <span>Loading factor & sector data...</span>
+  <span id="prog">{{ progress }}</span>
+</div>
+<script>
+(function poll(){
+  setTimeout(function(){
+    fetch('/status').then(r=>r.json()).then(d=>{
+      var p=document.getElementById('prog');
+      if(p) p.textContent=d.progress||'';
+      if(d.phase>=4){ location.reload(); } else { poll(); }
+    }).catch(()=>poll());
+  },4000);
+})();
+</script>
+{% endif %}
+
+<header>
+  <div class="h-left">
+    <h1>📊 Absolute & Relative Score Analysis</h1>
+    <div class="subtitle">Scores vs SPY &nbsp;|&nbsp; 52-week percentile mapped to [−1, +1] &nbsp;|&nbsp; Oversold = opportunity &nbsp; Overbought = caution</div>
+  </div>
+  <div class="h-right">
+    <div class="badge">Updated: <b>{{ last_updated }}</b></div>
+    <a class="btn-refresh" href="/refresh">↻ Refresh</a>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="sectors" onclick="switchTab('sectors')">Sectors</button>
+  <button class="tab-btn" data-tab="factors" onclick="switchTab('factors')">Factors</button>
+</div>
+
+<!-- Main content -->
+<div class="content">
+  <!-- TABLE PANEL -->
+  <div class="table-panel">
+
+    <!-- Sectors table -->
+    <div id="panel-sectors">
+      <table class="analysis-table" id="tbl-sectors">
+        <thead>
+          <tr>
+            <th onclick="sortTbl('sectors',0)">Symbol</th>
+            <th onclick="sortTbl('sectors',1)">Name</th>
+            <th onclick="sortTbl('sectors',2)">Absolute Score</th>
+            <th onclick="sortTbl('sectors',3)">Relative Score (vs SPY)</th>
+            <th>Chart</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for f in sectors %}
+        <tr data-sym="{{ f.symbol }}">
+          <td class="sym">{{ f.symbol }}</td>
+          <td class="fname">{{ f.name }}</td>
+          <td class="score {{ 'sc-6' if f.abs_score <= -0.60 else 'sc-5' if f.abs_score <= -0.40 else 'sc-4' if f.abs_score <= -0.20 else 'sc-3' if f.abs_score < 0 else 'sc0' if f.abs_score == 0 else 'sc3' if f.abs_score < 0.20 else 'sc4' if f.abs_score < 0.40 else 'sc5' if f.abs_score < 0.60 else 'sc6' }}">
+            {{ '%+.2f'|format(f.abs_score) }}
+          </td>
+          <td class="score {{ 'sc-6' if f.rel_score <= -0.60 else 'sc-5' if f.rel_score <= -0.40 else 'sc-4' if f.rel_score <= -0.20 else 'sc-3' if f.rel_score < 0 else 'sc0' if f.rel_score == 0 else 'sc3' if f.rel_score < 0.20 else 'sc4' if f.rel_score < 0.40 else 'sc5' if f.rel_score < 0.60 else 'sc6' }}">
+            {{ '%+.2f'|format(f.rel_score) }}
+          </td>
+          <td class="chk"><input type="checkbox" data-group="sectors" data-symbol="{{ f.symbol }}" onchange="rebuildChart()" {% if loop.index0 < 5 %}checked{% endif %}></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Factors table (hidden by default) -->
+    <div id="panel-factors" style="display:none;">
+      <table class="analysis-table" id="tbl-factors">
+        <thead>
+          <tr>
+            <th onclick="sortTbl('factors',0)">Symbol</th>
+            <th onclick="sortTbl('factors',1)">Name</th>
+            <th onclick="sortTbl('factors',2)">Absolute Score</th>
+            <th onclick="sortTbl('factors',3)">Relative Score (vs SPY)</th>
+            <th>Chart</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for f in factors %}
+        <tr data-sym="{{ f.symbol }}">
+          <td class="sym">{{ f.symbol }}</td>
+          <td class="fname">{{ f.name }}</td>
+          <td class="score {{ 'sc-6' if f.abs_score <= -0.60 else 'sc-5' if f.abs_score <= -0.40 else 'sc-4' if f.abs_score <= -0.20 else 'sc-3' if f.abs_score < 0 else 'sc0' if f.abs_score == 0 else 'sc3' if f.abs_score < 0.20 else 'sc4' if f.abs_score < 0.40 else 'sc5' if f.abs_score < 0.60 else 'sc6' }}">
+            {{ '%+.2f'|format(f.abs_score) }}
+          </td>
+          <td class="score {{ 'sc-6' if f.rel_score <= -0.60 else 'sc-5' if f.rel_score <= -0.40 else 'sc-4' if f.rel_score <= -0.20 else 'sc-3' if f.rel_score < 0 else 'sc0' if f.rel_score == 0 else 'sc3' if f.rel_score < 0.20 else 'sc4' if f.rel_score < 0.40 else 'sc5' if f.rel_score < 0.60 else 'sc6' }}">
+            {{ '%+.2f'|format(f.rel_score) }}
+          </td>
+          <td class="chk"><input type="checkbox" data-group="factors" data-symbol="{{ f.symbol }}" onchange="rebuildChart()" {% if loop.index0 < 5 %}checked{% endif %}></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- How it works -->
+    <div class="how-it-works">
+      <h3>How it works</h3>
+      <div class="gradient-bar"></div>
+      <div class="gradient-labels" style="position:relative;">
+        <span>−1.00</span>
+        <span style="position:absolute;left:12.5%;">−0.75</span>
+        <span style="position:absolute;left:40%;font-weight:700;color:var(--text);">−0.20</span>
+        <span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:#f1f5f9;">Fair Value</span>
+        <span style="position:absolute;left:60%;font-weight:700;color:var(--text);">+0.20</span>
+        <span style="position:absolute;left:87.5%;">+0.75</span>
+        <span>+1.00</span>
+      </div>
+      <div class="grad-desc">
+        <span class="buy">← Oversold<br><small style="font-weight:400;color:var(--muted)">Could be a good time<br>to increase holdings</small></span>
+        <span class="sell" style="text-align:right;">Overbought →<br><small style="font-weight:400;color:var(--muted)">Could be a good time<br>to reduce holdings</small></span>
+      </div>
+      <p style="font-size:10.5px;color:var(--muted);margin-top:8px;">
+        <b>Note:</b> Scores can stay extremely overbought or oversold for weeks. Patience is required.
+      </p>
+    </div>
+
+  </div><!-- /table-panel -->
+
+  <!-- CHART PANEL -->
+  <div class="chart-panel">
+    <div class="chart-title" id="chart-title">Sectors — Absolute vs Relative Score (vs SPY)</div>
+    <div class="chart-container">
+      <canvas id="scatterChart"></canvas>
+    </div>
+
+    <!-- Tail length selector -->
+    <div class="tail-controls">
+      <label>Tail Length:</label>
+      <button class="tail-btn" data-weeks="4" onclick="setTail(4)">4 wk</button>
+      <button class="tail-btn active" data-weeks="6" onclick="setTail(6)">6 wk</button>
+      <button class="tail-btn" data-weeks="8" onclick="setTail(8)">8 wk</button>
+      <button class="tail-btn" data-weeks="10" onclick="setTail(10)">10 wk</button>
+      <button class="tail-btn" data-weeks="12" onclick="setTail(12)">12 wk</button>
+    </div>
+
+    <!-- Quadrant legend -->
+    <div class="quad-legend">
+      <div class="ql"><span class="ql-swatch" style="background:rgba(34,197,94,.18)"></span> Oversold + Outperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(239,68,68,.18)"></span> Overbought + Outperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(59,130,246,.10)"></span> Oversold + Underperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(251,191,36,.14)"></span> Overbought + Underperforming</div>
+    </div>
+  </div><!-- /chart-panel -->
+
+</div><!-- /content -->
+
+<footer>
+  Data: Yahoo Finance &nbsp;|&nbsp; Scores: 52-week percentile rank mapped [−1, +1] vs SPY &nbsp;|&nbsp;
+  Refresh after market close (3 PM CT) &nbsp;|&nbsp; Click any column to sort
+</footer>
+
+<!-- ── DATA ── -->
+<script>
+const ALL_DATA = {{ data_json | safe }};
+
+const COLORS = [
+  '#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6',
+  '#06b6d4','#ec4899','#84cc16','#f97316','#14b8a6',
+  '#6366f1','#e11d48','#0ea5e9','#a3e635','#d946ef',
+  '#fbbf24','#10b981','#f43f5e','#7c3aed','#0d9488',
+  '#e879f9','#38bdf8'
+];
+
+let currentTab  = 'sectors';
+let tailWeeks   = 6;
+let chart       = null;
+let sortState   = { sectors: { col: 3, asc: true }, factors: { col: 3, asc: true } };
+
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.getElementById('panel-sectors').style.display = tab === 'sectors' ? '' : 'none';
+  document.getElementById('panel-factors').style.display = tab === 'factors' ? '' : 'none';
+  document.getElementById('chart-title').textContent =
+    (tab === 'sectors' ? 'Sectors' : 'Factors') + ' — Absolute vs Relative Score (vs SPY)';
+  rebuildChart();
+}
+
+
+// ── Tail selector ─────────────────────────────────────────────────────────────
+
+function setTail(weeks) {
+  tailWeeks = weeks;
+  document.querySelectorAll('.tail-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.weeks) === weeks);
+  });
+  rebuildChart();
+}
+
+
+// ── Chart ─────────────────────────────────────────────────────────────────────
+
+// Quadrant background plugin
+const quadrantPlugin = {
+  id: 'quadrantColors',
+  beforeDraw(chart) {
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { x, y } } = chart;
+    const xc = x.getPixelForValue(0);
+    const yc = y.getPixelForValue(0);
+
+    // Top-left: oversold + outperforming (green)
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+    ctx.fillRect(left, top, xc - left, yc - top);
+
+    // Top-right: overbought + outperforming (red)
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+    ctx.fillRect(xc, top, right - xc, yc - top);
+
+    // Bottom-left: oversold + underperforming (blue)
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.06)';
+    ctx.fillRect(left, yc, xc - left, bottom - yc);
+
+    // Bottom-right: overbought + underperforming (amber)
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.10)';
+    ctx.fillRect(xc, yc, right - xc, bottom - yc);
+
+    // Axis lines
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(xc, top); ctx.lineTo(xc, bottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(left, yc); ctx.lineTo(right, yc); ctx.stroke();
+    ctx.restore();
+
+    // Axis labels
+    ctx.save();
+    ctx.font = '10px system-ui';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText('← Oversold', left + 50, bottom + 28);
+    ctx.fillText('Overbought →', right - 55, bottom + 28);
+    ctx.fillText('Absolute Score', (left + right) / 2, bottom + 28);
+
+    ctx.save();
+    ctx.translate(left - 32, (top + bottom) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Relative Score (vs SPY)', 0, 0);
+    ctx.restore();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(239,68,68,0.5)';
+    ctx.font = '9px system-ui';
+    ctx.fillText('Overbought ↑', left + 4, top + 12);
+    ctx.fillStyle = 'rgba(34,197,94,0.5)';
+    ctx.fillText('Oversold ↓', left + 4, bottom - 4);
+    ctx.restore();
+  }
+};
+
+// Axis label plugin for "Overbought" on right side of Y-axis
+const axisLabelPlugin = {
+  id: 'axisLabels',
+  afterDraw(chart) {
+    // Intentionally left minimal — main labels in quadrantPlugin
+  }
+};
+
+function buildDatasets() {
+  const data     = ALL_DATA[currentTab] || [];
+  const checked  = getCheckedSymbols();
+  const datasets = [];
+
+  data.forEach((item, idx) => {
+    if (!checked.has(item.symbol)) return;
+
+    const trail = item.trail || [];
+    const n     = Math.min(tailWeeks + 1, trail.length);
+    const pts   = trail.slice(0, n).map(t => ({ x: t.abs, y: t.rel }));
+
+    if (pts.length === 0) return;
+
+    const color = COLORS[idx % COLORS.length];
+
+    // Tail line
+    datasets.push({
+      label: item.symbol + '_trail',
+      data: pts,
+      showLine: true,
+      borderColor: color + '88',
+      borderWidth: 2,
+      pointBackgroundColor: pts.map((_, i) => i === 0 ? color : color + '66'),
+      pointBorderColor: pts.map((_, i) => i === 0 ? '#fff' : 'transparent'),
+      pointBorderWidth: pts.map((_, i) => i === 0 ? 2 : 0),
+      pointRadius: pts.map((_, i) => i === 0 ? 6 : 3),
+      pointStyle: pts.map((_, i) => i === 0 ? 'rectRounded' : 'circle'),
+      tension: 0.3,
+      datalabels: {
+        display: function(ctx) { return ctx.dataIndex === 0; },
+        formatter: function(value, ctx) {
+          return item.symbol + ': ' + value.y.toFixed(2);
+        },
+        color: color,
+        font: { size: 11, weight: 'bold' },
+        anchor: 'end',
+        align: 'top',
+        offset: 6,
+        backgroundColor: 'rgba(15,23,42,0.75)',
+        borderRadius: 3,
+        padding: { top: 2, bottom: 2, left: 4, right: 4 },
+      },
+    });
+  });
+
+  return datasets;
+}
+
+function getCheckedSymbols() {
+  const checked = new Set();
+  document.querySelectorAll(`input[data-group="${currentTab}"]:checked`).forEach(cb => {
+    checked.add(cb.dataset.symbol);
+  });
+  return checked;
+}
+
+function rebuildChart() {
+  const datasets = buildDatasets();
+
+  if (chart) {
+    chart.data.datasets = datasets;
+    chart.update('none');
+    return;
+  }
+
+  Chart.register(ChartDataLabels);
+
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: datasets },
+    plugins: [quadrantPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      animation: { duration: 300 },
+      layout: {
+        padding: { top: 10, right: 10, bottom: 36, left: 40 }
+      },
+      scales: {
+        x: {
+          min: -1, max: 1,
+          ticks: {
+            stepSize: 0.25,
+            color: 'rgba(255,255,255,0.35)',
+            font: { size: 10 },
+            callback: v => v.toFixed(2),
+          },
+          grid: {
+            color: ctx => ctx.tick && ctx.tick.value === 0
+              ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.04)',
+            lineWidth: ctx => ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5,
+          },
+          border: { color: 'rgba(255,255,255,0.1)' },
+        },
+        y: {
+          min: -1, max: 1,
+          ticks: {
+            stepSize: 0.25,
+            color: 'rgba(255,255,255,0.35)',
+            font: { size: 10 },
+            callback: v => v.toFixed(2),
+          },
+          grid: {
+            color: ctx => ctx.tick && ctx.tick.value === 0
+              ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.04)',
+            lineWidth: ctx => ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5,
+          },
+          border: { color: 'rgba(255,255,255,0.1)' },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          borderColor: '#334155',
+          borderWidth: 1,
+          titleColor: '#f1f5f9',
+          bodyColor: '#cbd5e1',
+          callbacks: {
+            label: function(ctx) {
+              const label = ctx.dataset.label.replace('_trail', '');
+              const idx = ctx.dataIndex;
+              const suffix = idx === 0 ? ' (current)' : ` (${idx}w ago)`;
+              return `${label}${suffix}  Abs: ${ctx.parsed.x.toFixed(2)}  Rel: ${ctx.parsed.y.toFixed(2)}`;
+            }
+          }
+        },
+        datalabels: {
+          // defaults handled per-dataset
+        },
+      },
+    },
+  });
+}
+
+
+// ── Table sorting ─────────────────────────────────────────────────────────────
+
+function sortTbl(group, col) {
+  const st    = sortState[group];
+  if (st.col === col) { st.asc = !st.asc; }
+  else { st.col = col; st.asc = (col <= 1); }
+
+  const tbl   = document.getElementById('tbl-' + group);
+  const tbody = tbl.querySelector('tbody');
+  const rows  = Array.from(tbody.rows);
+
+  rows.sort((a, b) => {
+    const av = cellVal(a.cells[col]);
+    const bv = cellVal(b.cells[col]);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return st.asc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+
+  tbl.querySelectorAll('thead th').forEach((th, i) => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (i === col) th.classList.add(st.asc ? 'sorted-asc' : 'sorted-desc');
+  });
+}
+
+function cellVal(cell) {
+  const t = cell.innerText.trim().replace(/[+]/g, '');
+  if (t === '—' || t === '') return null;
+  const n = parseFloat(t);
+  return isNaN(n) ? t.toLowerCase() : n;
+}
+
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (ALL_DATA.sectors && ALL_DATA.sectors.length > 0) {
+    rebuildChart();
+  }
+});
+</script>
+</body>
+</html>
