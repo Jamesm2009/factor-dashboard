@@ -8,51 +8,40 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root {
-  --bg:      #0c1220;
-  --surface: #151d2e;
-  --card:    #1a2438;
-  --border:  #2a3650;
-  --text:    #e2e8f0;
-  --muted:   #7b8ba3;
-  --accent:  #3b82f6;
-  --header:  #0a0f1a;
-
-  /* score cell colors — contrarian: green = oversold (opportunity), red = overbought (caution) */
-  --s-deep-green: #0d6938;
-  --s-med-green:  #16a34a;
-  --s-light-green:#22c55e;
-  --s-neutral:    #374151;
-  --s-light-red:  #ef4444;
-  --s-med-red:    #dc2626;
-  --s-deep-red:   #991b1b;
+  --bg:      #f1f5f9;
+  --surface: #ffffff;
+  --card:    #ffffff;
+  --border:  #d0d7e3;
+  --text:    #1a2035;
+  --muted:   #64748b;
+  --accent:  #2563eb;
+  --header:  #1e2d45;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 13px; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; }
 
 /* ── Header ── */
 header {
-  background: var(--header);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
+  background: var(--header); color: #fff;
+  padding: 10px 20px;
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 10px;
+  flex-wrap: wrap; gap: 8px;
   position: sticky; top: 0; z-index: 30;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
 }
-.h-left h1 { font-size: 17px; font-weight: 700; letter-spacing: .3px; color: #f1f5f9; }
-.h-left .subtitle { font-size: 11px; color: var(--muted); margin-top: 3px; }
-.h-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.badge { background: rgba(255,255,255,.07); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 11px; color: var(--muted); }
-.badge b { color: var(--text); }
-.btn-refresh { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; }
-.btn-refresh:hover { background: #2563eb; }
+.h-left h1 { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
+.h-left .subtitle { font-size: 11px; color: #93c5fd; margin-top: 2px; }
+.h-right { display: flex; align-items: center; gap: 10px; }
+.badge { background: rgba(255,255,255,.12); border-radius: 6px; padding: 4px 12px; font-size: 11px; color: #cbd5e1; }
+.badge b { color: #fff; }
 
 /* ── Loading ── */
 .loading-banner {
-  background: #1e3a5f; color: #bfdbfe; padding: 10px 20px; font-size: 12.5px;
+  background: #1e40af; color: #fff; padding: 10px 20px; font-size: 13px;
   display: flex; align-items: center; gap: 12px; justify-content: center;
 }
-.error-banner { background: #7f1d1d; color: #fecaca; text-align: center; padding: 10px; font-size: 13px; font-weight: 600; }
+.error-banner { background: #991b1b; color: #fecaca; text-align: center; padding: 10px; font-size: 13px; font-weight: 600; }
 
 /* ── Tabs ── */
 .tab-bar {
@@ -61,71 +50,67 @@ header {
 }
 .tab-btn {
   background: none; border: none; border-bottom: 3px solid transparent;
-  color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: .5px;
-  text-transform: uppercase; padding: 10px 24px; cursor: pointer;
+  color: var(--muted); font-size: 14px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; padding: 10px 28px; cursor: pointer;
   transition: color .15s, border-color .15s;
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* ── Content layout ── */
+/* ── Content layout: chart 65%, table 35% ── */
 .content {
-  display: flex; gap: 16px; padding: 16px 20px;
-  align-items: flex-start; min-height: calc(100vh - 140px);
+  display: flex; gap: 16px; padding: 14px 16px;
+  align-items: flex-start; min-height: calc(100vh - 120px);
 }
-.table-panel { flex: 1; min-width: 360px; }
+.table-panel { flex: 0 0 35%; min-width: 300px; max-height: calc(100vh - 120px); overflow-y: auto; }
 .chart-panel {
-  flex: 1; min-width: 420px;
+  flex: 0 0 63%;
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px;
-  position: sticky; top: 60px;
+  border-radius: 10px; padding: 14px 16px;
+  position: sticky; top: 56px;
 }
 
-@media (max-width: 960px) {
-  .content { flex-direction: column; }
+@media (max-width: 1000px) {
+  .content { flex-direction: column-reverse; }
+  .table-panel, .chart-panel { flex: 1 1 auto; max-height: none; }
   .chart-panel { position: static; }
 }
 
 /* ── Table ── */
 .analysis-table {
-  width: 100%; border-collapse: collapse;
-  background: var(--card); border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--border);
+  width: 100%; border-collapse: separate; border-spacing: 0 1px;
+  background: var(--bg);
 }
 .analysis-table thead th {
-  background: #0f172a; color: var(--muted); font-size: 10.5px; font-weight: 700;
-  letter-spacing: .4px; text-transform: uppercase; padding: 8px 10px;
-  border-bottom: 2px solid var(--border); cursor: pointer; user-select: none;
-  white-space: nowrap;
+  background: var(--header); color: #93c5fd; font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; padding: 7px 8px;
+  cursor: pointer; user-select: none; white-space: nowrap;
 }
-.analysis-table thead th:hover { color: var(--text); }
+.analysis-table thead th:hover { color: #fff; }
 .analysis-table thead th.sorted-asc::after  { content: " ▲"; color: #fbbf24; }
 .analysis-table thead th.sorted-desc::after { content: " ▼"; color: #fbbf24; }
-.analysis-table tbody tr {
-  border-bottom: 1px solid rgba(255,255,255,.04);
-  transition: background .1s;
-}
-.analysis-table tbody tr:hover { background: rgba(59,130,246,.08); }
 
-.analysis-table td { padding: 7px 10px; white-space: nowrap; }
-td.sym { font-weight: 700; font-family: 'Courier New', monospace; font-size: 13px; color: var(--accent); }
-td.fname { font-weight: 500; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.analysis-table tbody tr { background: var(--card); }
+.analysis-table tbody tr:hover { background: #eff6ff; }
 
-/* Score cells */
+.analysis-table td { padding: 6px 8px; white-space: nowrap; }
+td.sym { font-weight: 700; font-family: 'Courier New', monospace; font-size: 14px; color: var(--accent); }
+td.fname { font-weight: 500; color: var(--text); max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+
+/* Score cells — compact with 1px gap via border-spacing */
 td.score {
   text-align: center; font-weight: 700; font-variant-numeric: tabular-nums;
-  font-size: 12.5px; border-radius: 4px; min-width: 70px;
-  padding: 5px 8px;
+  font-size: 13px; min-width: 58px; padding: 5px 6px;
 }
 .sc-6 { background: #064e2a; color: #86efac; }
 .sc-5 { background: #0d7a3f; color: #bbf7d0; }
 .sc-4 { background: #16a34a; color: #fff; }
 .sc-3 { background: #22c55e; color: #052e16; }
-.sc-0 { background: #374151; color: #d1d5db; }
-.sc0  { background: #374151; color: #d1d5db; }
-.sc3  { background: #f87171; color: #450a0a; }
+.sc-0 { background: #e5e7eb; color: #6b7280; }
+.sc0  { background: #e5e7eb; color: #6b7280; }
+.sc3  { background: #fca5a5; color: #450a0a; }
 .sc4  { background: #ef4444; color: #fff; }
-.sc5  { background: #dc2626; color: #fecaca; }
+.sc5  { background: #dc2626; color: #fff; }
 .sc6  { background: #991b1b; color: #fecaca; }
 
 /* Chart checkbox */
@@ -138,57 +123,51 @@ td.chk input[type="checkbox"] {
 /* ── How it works bar ── */
 .how-it-works {
   background: var(--card); border: 1px solid var(--border); border-radius: 8px;
-  padding: 14px 16px; margin-top: 12px;
+  padding: 12px 14px; margin-top: 10px;
 }
-.how-it-works h3 { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+.how-it-works h3 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
 .gradient-bar {
-  height: 12px; border-radius: 6px;
-  background: linear-gradient(to right, #064e2a, #16a34a, #22c55e, #6b7280, #ef4444, #dc2626, #991b1b);
-  position: relative;
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(to right, #064e2a, #16a34a, #22c55e, #d1d5db, #ef4444, #dc2626, #991b1b);
 }
 .gradient-labels {
-  display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);
-  margin-top: 4px; padding: 0 2px;
+  display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted);
+  margin-top: 3px; padding: 0 2px;
 }
-.gradient-labels .center { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 700; color: var(--text); }
 .grad-desc {
-  display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 6px;
+  display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 5px;
 }
-.grad-desc .buy  { color: #4ade80; font-weight: 600; }
-.grad-desc .sell { color: #f87171; font-weight: 600; }
+.grad-desc .buy  { color: #16a34a; font-weight: 600; }
+.grad-desc .sell { color: #dc2626; font-weight: 600; }
 
 /* ── Chart panel ── */
-.chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
-.chart-container { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: 520px; }
+.chart-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.chart-container { position: relative; width: 100%; aspect-ratio: 1.15 / 1; }
 .tail-controls {
-  display: flex; align-items: center; gap: 8px; margin-top: 14px;
-  padding-top: 12px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--border);
 }
-.tail-controls label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.tail-controls label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
 .tail-btn {
-  background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 5px;
+  background: #f1f5f9; border: 1px solid var(--border); border-radius: 5px;
   color: var(--muted); font-size: 12px; font-weight: 600; padding: 4px 12px;
   cursor: pointer; transition: all .15s;
 }
 .tail-btn:hover { border-color: var(--accent); color: var(--text); }
 .tail-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* ── Footer ── */
-footer {
-  text-align: center; padding: 16px 20px; color: var(--muted); font-size: 11px;
-  border-top: 1px solid var(--border); background: var(--surface); margin-top: 10px;
-}
-
 /* ── Quadrant legend ── */
 .quad-legend {
-  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;
-  font-size: 10px; color: var(--muted);
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
+  font-size: 10.5px; color: var(--muted);
 }
-.quad-legend .ql {
-  display: flex; align-items: center; gap: 4px;
-}
-.ql-swatch {
-  width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,.1);
+.quad-legend .ql { display: flex; align-items: center; gap: 4px; }
+.ql-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--border); }
+
+/* ── Footer ── */
+footer {
+  text-align: center; padding: 12px 20px; color: var(--muted); font-size: 11px;
+  border-top: 1px solid var(--border); background: var(--surface); margin-top: 6px;
 }
 </style>
 </head>
@@ -224,7 +203,6 @@ footer {
   </div>
   <div class="h-right">
     <div class="badge">Updated: <b>{{ last_updated }}</b></div>
-    <a class="btn-refresh" href="/refresh">↻ Refresh</a>
   </div>
 </header>
 
@@ -234,9 +212,36 @@ footer {
   <button class="tab-btn" data-tab="factors" onclick="switchTab('factors')">Factors</button>
 </div>
 
-<!-- Main content -->
+<!-- Main content: chart first (65%), table second (35%) -->
 <div class="content">
-  <!-- TABLE PANEL -->
+
+  <!-- CHART PANEL (65%) -->
+  <div class="chart-panel">
+    <div class="chart-title" id="chart-title">Sectors — Absolute vs Relative Score (vs SPY)</div>
+    <div class="chart-container">
+      <canvas id="scatterChart"></canvas>
+    </div>
+
+    <!-- Tail length selector -->
+    <div class="tail-controls">
+      <label>Tail Length:</label>
+      <button class="tail-btn" data-weeks="4" onclick="setTail(4)">4 wk</button>
+      <button class="tail-btn active" data-weeks="6" onclick="setTail(6)">6 wk</button>
+      <button class="tail-btn" data-weeks="8" onclick="setTail(8)">8 wk</button>
+      <button class="tail-btn" data-weeks="10" onclick="setTail(10)">10 wk</button>
+      <button class="tail-btn" data-weeks="12" onclick="setTail(12)">12 wk</button>
+    </div>
+
+    <!-- Quadrant legend -->
+    <div class="quad-legend">
+      <div class="ql"><span class="ql-swatch" style="background:rgba(34,197,94,.18)"></span> Oversold + Outperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(239,68,68,.18)"></span> Overbought + Outperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(59,130,246,.10)"></span> Oversold + Underperforming</div>
+      <div class="ql"><span class="ql-swatch" style="background:rgba(251,191,36,.14)"></span> Overbought + Underperforming</div>
+    </div>
+  </div>
+
+  <!-- TABLE PANEL (35%) -->
   <div class="table-panel">
 
     <!-- Sectors table -->
@@ -246,8 +251,8 @@ footer {
           <tr>
             <th onclick="sortTbl('sectors',0)">Symbol</th>
             <th onclick="sortTbl('sectors',1)">Name</th>
-            <th onclick="sortTbl('sectors',2)">Absolute Score</th>
-            <th onclick="sortTbl('sectors',3)">Relative Score (vs SPY)</th>
+            <th onclick="sortTbl('sectors',2)">Absolute</th>
+            <th onclick="sortTbl('sectors',3)">Relative (SPY)</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -276,8 +281,8 @@ footer {
           <tr>
             <th onclick="sortTbl('factors',0)">Symbol</th>
             <th onclick="sortTbl('factors',1)">Name</th>
-            <th onclick="sortTbl('factors',2)">Absolute Score</th>
-            <th onclick="sortTbl('factors',3)">Relative Score (vs SPY)</th>
+            <th onclick="sortTbl('factors',2)">Absolute</th>
+            <th onclick="sortTbl('factors',3)">Relative (SPY)</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -307,7 +312,7 @@ footer {
         <span>−1.00</span>
         <span style="position:absolute;left:12.5%;">−0.75</span>
         <span style="position:absolute;left:40%;font-weight:700;color:var(--text);">−0.20</span>
-        <span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:#f1f5f9;">Fair Value</span>
+        <span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text);">Fair Value</span>
         <span style="position:absolute;left:60%;font-weight:700;color:var(--text);">+0.20</span>
         <span style="position:absolute;left:87.5%;">+0.75</span>
         <span>+1.00</span>
@@ -316,38 +321,12 @@ footer {
         <span class="buy">← Oversold<br><small style="font-weight:400;color:var(--muted)">Could be a good time<br>to increase holdings</small></span>
         <span class="sell" style="text-align:right;">Overbought →<br><small style="font-weight:400;color:var(--muted)">Could be a good time<br>to reduce holdings</small></span>
       </div>
-      <p style="font-size:10.5px;color:var(--muted);margin-top:8px;">
+      <p style="font-size:10.5px;color:var(--muted);margin-top:6px;">
         <b>Note:</b> Scores can stay extremely overbought or oversold for weeks. Patience is required.
       </p>
     </div>
 
   </div><!-- /table-panel -->
-
-  <!-- CHART PANEL -->
-  <div class="chart-panel">
-    <div class="chart-title" id="chart-title">Sectors — Absolute vs Relative Score (vs SPY)</div>
-    <div class="chart-container">
-      <canvas id="scatterChart"></canvas>
-    </div>
-
-    <!-- Tail length selector -->
-    <div class="tail-controls">
-      <label>Tail Length:</label>
-      <button class="tail-btn" data-weeks="4" onclick="setTail(4)">4 wk</button>
-      <button class="tail-btn active" data-weeks="6" onclick="setTail(6)">6 wk</button>
-      <button class="tail-btn" data-weeks="8" onclick="setTail(8)">8 wk</button>
-      <button class="tail-btn" data-weeks="10" onclick="setTail(10)">10 wk</button>
-      <button class="tail-btn" data-weeks="12" onclick="setTail(12)">12 wk</button>
-    </div>
-
-    <!-- Quadrant legend -->
-    <div class="quad-legend">
-      <div class="ql"><span class="ql-swatch" style="background:rgba(34,197,94,.18)"></span> Oversold + Outperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(239,68,68,.18)"></span> Overbought + Outperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(59,130,246,.10)"></span> Oversold + Underperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(251,191,36,.14)"></span> Overbought + Underperforming</div>
-    </div>
-  </div><!-- /chart-panel -->
 
 </div><!-- /content -->
 
@@ -356,16 +335,16 @@ footer {
   Refresh after market close (3 PM CT) &nbsp;|&nbsp; Click any column to sort
 </footer>
 
-<!-- ── DATA ── -->
+<!-- ── DATA + JS ── -->
 <script>
 const ALL_DATA = {{ data_json | safe }};
 
 const COLORS = [
-  '#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6',
-  '#06b6d4','#ec4899','#84cc16','#f97316','#14b8a6',
-  '#6366f1','#e11d48','#0ea5e9','#a3e635','#d946ef',
-  '#fbbf24','#10b981','#f43f5e','#7c3aed','#0d9488',
-  '#e879f9','#38bdf8'
+  '#dc2626','#2563eb','#16a34a','#d97706','#7c3aed',
+  '#0891b2','#db2777','#65a30d','#ea580c','#0d9488',
+  '#4f46e5','#be123c','#0284c7','#84cc16','#c026d3',
+  '#ca8a04','#059669','#e11d48','#6d28d9','#0f766e',
+  '#a21caf','#0369a1'
 ];
 
 let currentTab  = 'sectors';
@@ -374,7 +353,7 @@ let chart       = null;
 let sortState   = { sectors: { col: 3, asc: true }, factors: { col: 3, asc: true } };
 
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Tabs ──
 
 function switchTab(tab) {
   currentTab = tab;
@@ -384,12 +363,12 @@ function switchTab(tab) {
   document.getElementById('panel-sectors').style.display = tab === 'sectors' ? '' : 'none';
   document.getElementById('panel-factors').style.display = tab === 'factors' ? '' : 'none';
   document.getElementById('chart-title').textContent =
-    (tab === 'sectors' ? 'Sectors' : 'Factors') + ' — Absolute vs Relative Score (vs SPY)';
+    (tab === 'sectors' ? 'Sectors' : 'Factors') + ' \u2014 Absolute vs Relative Score (vs SPY)';
   rebuildChart();
 }
 
 
-// ── Tail selector ─────────────────────────────────────────────────────────────
+// ── Tail selector ──
 
 function setTail(weeks) {
   tailWeeks = weeks;
@@ -400,9 +379,8 @@ function setTail(weeks) {
 }
 
 
-// ── Chart ─────────────────────────────────────────────────────────────────────
+// ── Chart ──
 
-// Quadrant background plugin
 const quadrantPlugin = {
   id: 'quadrantColors',
   beforeDraw(chart) {
@@ -410,38 +388,38 @@ const quadrantPlugin = {
     const xc = x.getPixelForValue(0);
     const yc = y.getPixelForValue(0);
 
-    // Top-left: oversold + outperforming (green)
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+    // Top-left: oversold + outperforming (green tint)
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.10)';
     ctx.fillRect(left, top, xc - left, yc - top);
 
-    // Top-right: overbought + outperforming (red)
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+    // Top-right: overbought + outperforming (red tint)
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.10)';
     ctx.fillRect(xc, top, right - xc, yc - top);
 
-    // Bottom-left: oversold + underperforming (blue)
+    // Bottom-left: oversold + underperforming (blue tint)
     ctx.fillStyle = 'rgba(59, 130, 246, 0.06)';
     ctx.fillRect(left, yc, xc - left, bottom - yc);
 
-    // Bottom-right: overbought + underperforming (amber)
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.10)';
+    // Bottom-right: overbought + underperforming (amber tint)
+    ctx.fillStyle = 'rgba(217, 119, 6, 0.08)';
     ctx.fillRect(xc, yc, right - xc, bottom - yc);
 
-    // Axis lines
+    // Zero-cross dashed lines
     ctx.save();
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(xc, top); ctx.lineTo(xc, bottom); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(left, yc); ctx.lineTo(right, yc); ctx.stroke();
     ctx.restore();
 
-    // Axis labels
+    // Axis annotations
     ctx.save();
     ctx.font = '10px system-ui';
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.textAlign = 'center';
-    ctx.fillText('← Oversold', left + 50, bottom + 28);
-    ctx.fillText('Overbought →', right - 55, bottom + 28);
+    ctx.fillText('\u2190 Oversold', left + 50, bottom + 28);
+    ctx.fillText('Overbought \u2192', right - 55, bottom + 28);
     ctx.fillText('Absolute Score', (left + right) / 2, bottom + 28);
 
     ctx.save();
@@ -451,20 +429,12 @@ const quadrantPlugin = {
     ctx.restore();
 
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(239,68,68,0.5)';
+    ctx.fillStyle = 'rgba(220,38,38,0.4)';
     ctx.font = '9px system-ui';
-    ctx.fillText('Overbought ↑', left + 4, top + 12);
-    ctx.fillStyle = 'rgba(34,197,94,0.5)';
-    ctx.fillText('Oversold ↓', left + 4, bottom - 4);
+    ctx.fillText('Overbought \u2191', left + 4, top + 12);
+    ctx.fillStyle = 'rgba(22,163,74,0.4)';
+    ctx.fillText('Oversold \u2193', left + 4, bottom - 4);
     ctx.restore();
-  }
-};
-
-// Axis label plugin for "Overbought" on right side of Y-axis
-const axisLabelPlugin = {
-  id: 'axisLabels',
-  afterDraw(chart) {
-    // Intentionally left minimal — main labels in quadrantPlugin
   }
 };
 
@@ -484,14 +454,13 @@ function buildDatasets() {
 
     const color = COLORS[idx % COLORS.length];
 
-    // Tail line
     datasets.push({
       label: item.symbol + '_trail',
       data: pts,
       showLine: true,
-      borderColor: color + '88',
+      borderColor: color + 'aa',
       borderWidth: 2,
-      pointBackgroundColor: pts.map((_, i) => i === 0 ? color : color + '66'),
+      pointBackgroundColor: pts.map((_, i) => i === 0 ? color : color + '77'),
       pointBorderColor: pts.map((_, i) => i === 0 ? '#fff' : 'transparent'),
       pointBorderWidth: pts.map((_, i) => i === 0 ? 2 : 0),
       pointRadius: pts.map((_, i) => i === 0 ? 6 : 3),
@@ -507,7 +476,9 @@ function buildDatasets() {
         anchor: 'end',
         align: 'top',
         offset: 6,
-        backgroundColor: 'rgba(15,23,42,0.75)',
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        borderColor: color + '44',
+        borderWidth: 1,
         borderRadius: 3,
         padding: { top: 2, bottom: 2, left: 4, right: 4 },
       },
@@ -519,7 +490,7 @@ function buildDatasets() {
 
 function getCheckedSymbols() {
   const checked = new Set();
-  document.querySelectorAll(`input[data-group="${currentTab}"]:checked`).forEach(cb => {
+  document.querySelectorAll('input[data-group="' + currentTab + '"]:checked').forEach(cb => {
     checked.add(cb.dataset.symbol);
   });
   return checked;
@@ -553,95 +524,91 @@ function rebuildChart() {
           min: -1, max: 1,
           ticks: {
             stepSize: 0.25,
-            color: 'rgba(255,255,255,0.35)',
+            color: 'rgba(0,0,0,0.4)',
             font: { size: 10 },
-            callback: v => v.toFixed(2),
+            callback: function(v) { return v.toFixed(2); },
           },
           grid: {
-            color: ctx => ctx.tick && ctx.tick.value === 0
-              ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.04)',
-            lineWidth: ctx => ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5,
+            color: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.04)'; },
+            lineWidth: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5; },
           },
-          border: { color: 'rgba(255,255,255,0.1)' },
+          border: { color: 'rgba(0,0,0,0.1)' },
         },
         y: {
           min: -1, max: 1,
           ticks: {
             stepSize: 0.25,
-            color: 'rgba(255,255,255,0.35)',
+            color: 'rgba(0,0,0,0.4)',
             font: { size: 10 },
-            callback: v => v.toFixed(2),
+            callback: function(v) { return v.toFixed(2); },
           },
           grid: {
-            color: ctx => ctx.tick && ctx.tick.value === 0
-              ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.04)',
-            lineWidth: ctx => ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5,
+            color: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.04)'; },
+            lineWidth: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 1.5 : 0.5; },
           },
-          border: { color: 'rgba(255,255,255,0.1)' },
+          border: { color: 'rgba(0,0,0,0.1)' },
         },
       },
       plugins: {
         legend: { display: false },
         tooltip: {
           backgroundColor: '#1e293b',
-          borderColor: '#334155',
+          borderColor: '#475569',
           borderWidth: 1,
           titleColor: '#f1f5f9',
           bodyColor: '#cbd5e1',
           callbacks: {
             label: function(ctx) {
-              const label = ctx.dataset.label.replace('_trail', '');
-              const idx = ctx.dataIndex;
-              const suffix = idx === 0 ? ' (current)' : ` (${idx}w ago)`;
-              return `${label}${suffix}  Abs: ${ctx.parsed.x.toFixed(2)}  Rel: ${ctx.parsed.y.toFixed(2)}`;
+              var label = ctx.dataset.label.replace('_trail', '');
+              var idx = ctx.dataIndex;
+              var suffix = idx === 0 ? ' (current)' : ' (' + idx + 'w ago)';
+              return label + suffix + '  Abs: ' + ctx.parsed.x.toFixed(2) + '  Rel: ' + ctx.parsed.y.toFixed(2);
             }
           }
         },
-        datalabels: {
-          // defaults handled per-dataset
-        },
+        datalabels: {},
       },
     },
   });
 }
 
 
-// ── Table sorting ─────────────────────────────────────────────────────────────
+// ── Table sorting ──
 
 function sortTbl(group, col) {
-  const st    = sortState[group];
+  var st = sortState[group];
   if (st.col === col) { st.asc = !st.asc; }
   else { st.col = col; st.asc = (col <= 1); }
 
-  const tbl   = document.getElementById('tbl-' + group);
-  const tbody = tbl.querySelector('tbody');
-  const rows  = Array.from(tbody.rows);
+  var tbl   = document.getElementById('tbl-' + group);
+  var tbody = tbl.querySelector('tbody');
+  var rows  = Array.from(tbody.rows);
 
-  rows.sort((a, b) => {
-    const av = cellVal(a.cells[col]);
-    const bv = cellVal(b.cells[col]);
+  rows.sort(function(a, b) {
+    var av = cellVal(a.cells[col]);
+    var bv = cellVal(b.cells[col]);
     if (av === null && bv === null) return 0;
     if (av === null) return 1;
     if (bv === null) return -1;
     return st.asc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
   });
-  rows.forEach(r => tbody.appendChild(r));
+  rows.forEach(function(r) { tbody.appendChild(r); });
 
-  tbl.querySelectorAll('thead th').forEach((th, i) => {
+  tbl.querySelectorAll('thead th').forEach(function(th, i) {
     th.classList.remove('sorted-asc', 'sorted-desc');
     if (i === col) th.classList.add(st.asc ? 'sorted-asc' : 'sorted-desc');
   });
 }
 
 function cellVal(cell) {
-  const t = cell.innerText.trim().replace(/[+]/g, '');
-  if (t === '—' || t === '') return null;
-  const n = parseFloat(t);
+  var t = cell.innerText.trim().replace(/[+]/g, '');
+  if (t === '\u2014' || t === '') return null;
+  var n = parseFloat(t);
   return isNaN(n) ? t.toLowerCase() : n;
 }
 
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Init ──
 
 document.addEventListener('DOMContentLoaded', function() {
   if (ALL_DATA.sectors && ALL_DATA.sectors.length > 0) {
