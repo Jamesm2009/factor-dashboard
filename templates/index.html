@@ -62,9 +62,9 @@ header {
   display: flex; gap: 16px; padding: 14px 16px;
   align-items: flex-start; min-height: calc(100vh - 120px);
 }
-.table-panel { flex: 0 0 35%; min-width: 300px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.table-panel { flex: 0 0 38%; min-width: 320px; max-height: calc(100vh - 120px); overflow-y: auto; }
 .chart-panel {
-  flex: 0 0 63%;
+  flex: 0 0 60%;
   background: var(--card); border: 1px solid var(--border);
   border-radius: 10px; padding: 14px 16px;
   position: sticky; top: 56px;
@@ -93,14 +93,14 @@ header {
 .analysis-table tbody tr { background: var(--card); }
 .analysis-table tbody tr:hover { background: #eff6ff; }
 
-.analysis-table td { padding: 6px 8px; white-space: nowrap; }
-td.sym { font-weight: 700; font-family: 'Courier New', monospace; font-size: 14px; color: var(--accent); }
-td.fname { font-weight: 500; color: var(--text); max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.analysis-table td { padding: 6px 6px; white-space: nowrap; }
+td.sym { font-weight: 700; font-family: 'Courier New', monospace; font-size: 13px; color: var(--accent); }
+td.fname { font-weight: 500; color: var(--text); max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 
 /* Score cells — compact with 1px gap via border-spacing */
 td.score {
   text-align: center; font-weight: 700; font-variant-numeric: tabular-nums;
-  font-size: 13px; min-width: 58px; padding: 5px 6px;
+  font-size: 13px; min-width: 52px; padding: 5px 5px;
 }
 .sc-6 { background: #064e2a; color: #86efac; }
 .sc-5 { background: #0d7a3f; color: #bbf7d0; }
@@ -144,8 +144,8 @@ td.chk input[type="checkbox"] {
 .chart-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
 .chart-container { position: relative; width: 100%; aspect-ratio: 1.15 / 1; }
 .tail-controls {
-  display: flex; align-items: center; gap: 8px; margin-top: 10px;
-  padding-top: 10px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
 }
 .tail-controls label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
 .tail-btn {
@@ -218,18 +218,20 @@ footer {
   <!-- CHART PANEL (65%) -->
   <div class="chart-panel">
     <div class="chart-title" id="chart-title">Sectors — Absolute vs Relative Score (vs SPY)</div>
-    <div class="chart-container">
-      <canvas id="scatterChart"></canvas>
-    </div>
 
     <!-- Tail length selector -->
     <div class="tail-controls">
       <label>Tail Length:</label>
+      <button class="tail-btn active" data-weeks="0" onclick="setTail(0)">Off</button>
       <button class="tail-btn" data-weeks="4" onclick="setTail(4)">4 wk</button>
-      <button class="tail-btn active" data-weeks="6" onclick="setTail(6)">6 wk</button>
+      <button class="tail-btn" data-weeks="6" onclick="setTail(6)">6 wk</button>
       <button class="tail-btn" data-weeks="8" onclick="setTail(8)">8 wk</button>
       <button class="tail-btn" data-weeks="10" onclick="setTail(10)">10 wk</button>
       <button class="tail-btn" data-weeks="12" onclick="setTail(12)">12 wk</button>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="scatterChart"></canvas>
     </div>
 
     <!-- Quadrant legend -->
@@ -251,8 +253,8 @@ footer {
           <tr>
             <th onclick="sortTbl('sectors',0)">Symbol</th>
             <th onclick="sortTbl('sectors',1)">Name</th>
-            <th onclick="sortTbl('sectors',2)">Absolute</th>
-            <th onclick="sortTbl('sectors',3)">Relative (SPY)</th>
+            <th onclick="sortTbl('sectors',2)">Abs Score</th>
+            <th onclick="sortTbl('sectors',3)">Rel (SPY)</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -281,8 +283,8 @@ footer {
           <tr>
             <th onclick="sortTbl('factors',0)">Symbol</th>
             <th onclick="sortTbl('factors',1)">Name</th>
-            <th onclick="sortTbl('factors',2)">Absolute</th>
-            <th onclick="sortTbl('factors',3)">Relative (SPY)</th>
+            <th onclick="sortTbl('factors',2)">Abs Score</th>
+            <th onclick="sortTbl('factors',3)">Rel (SPY)</th>
             <th>Chart</th>
           </tr>
         </thead>
@@ -348,7 +350,7 @@ const COLORS = [
 ];
 
 let currentTab  = 'sectors';
-let tailWeeks   = 6;
+let tailWeeks   = 0;
 let chart       = null;
 let sortState   = { sectors: { col: 3, asc: true }, factors: { col: 3, asc: true } };
 
@@ -447,8 +449,44 @@ function buildDatasets() {
     if (!checked.has(item.symbol)) return;
 
     const trail = item.trail || [];
-    const n     = Math.min(tailWeeks + 1, trail.length);
-    const pts   = trail.slice(0, n).map(t => ({ x: t.abs, y: t.rel }));
+    if (trail.length === 0) return;
+
+    const color = COLORS[idx % COLORS.length];
+
+    if (tailWeeks === 0) {
+      // Tail OFF — just show current position dot
+      datasets.push({
+        label: item.symbol + '_trail',
+        data: [{ x: trail[0].abs, y: trail[0].rel }],
+        showLine: false,
+        pointBackgroundColor: color,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 6,
+        pointStyle: 'rectRounded',
+        datalabels: {
+          display: true,
+          formatter: function() {
+            return item.symbol + ': ' + trail[0].rel.toFixed(2);
+          },
+          color: color,
+          font: { size: 11, weight: 'bold' },
+          anchor: 'end',
+          align: 'top',
+          offset: 6,
+          backgroundColor: 'rgba(255,255,255,0.85)',
+          borderColor: color + '44',
+          borderWidth: 1,
+          borderRadius: 3,
+          padding: { top: 2, bottom: 2, left: 4, right: 4 },
+        },
+      });
+      return;
+    }
+
+    // Tail ON — show trail line
+    const n   = Math.min(tailWeeks + 1, trail.length);
+    const pts = trail.slice(0, n).map(function(t) { return { x: t.abs, y: t.rel }; });
 
     if (pts.length === 0) return;
 
