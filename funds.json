@@ -18,7 +18,7 @@
     { "symbol": "GDX",  "name": "Gold Miners" },
     { "symbol": "IVW",  "name": "S&P 500 Growth" },
     { "symbol": "ARKK", "name": "Disruptive Tech" },
-    { "symbol": "EFA",  "name": "EAFE" },
+    { "symbol": "EFA",  "name": "Non_US Dev. Mrkets" },
     { "symbol": "EEM",  "name": "Emerging Markets" },
     { "symbol": "VYM",  "name": "High Dividend Yield" },
     { "symbol": "SPLV", "name": "Low Beta (Low Vol.)" },
@@ -26,7 +26,7 @@
     { "symbol": "VEA",  "name": "Developed Markets" },
     { "symbol": "MDYV", "name": "Mid Cap Value" },
     { "symbol": "VBR",  "name": "Small Cap Value" },
-    { "symbol": "FDM",  "name": "Dow Jones MicroCap" },
+    { "symbol": "TLT",  "name": "20+ Year Treasury Bond" },
     { "symbol": "RSP",  "name": "Equal Weight S&P 500" },
     { "symbol": "SPHB", "name": "High Beta" },
     { "symbol": "VFQY", "name": "Vanguard U.S. Quality" },
@@ -36,5 +36,6 @@
     { "symbol": "VBK",  "name": "Small Cap Growth" },
     { "symbol": "MDYG", "name": "Mid Cap Growth" },
     { "symbol": "IWM",  "name": "Small Caps" }
+    { "symbol": "IBIT",  "name": "Crypto" }
   ]
 }
