@@ -142,10 +142,10 @@ td.chk input[type="checkbox"] {
 
 /* ── Chart panel ── */
 .chart-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
-.chart-container { position: relative; width: 100%; aspect-ratio: 1.15 / 1; }
+.chart-container { position: relative; width: 100%; height: calc(100vh - 220px); min-height: 450px; }
 .tail-controls {
   display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
 }
 .tail-controls label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
 .tail-btn {
@@ -219,7 +219,7 @@ footer {
   <div class="chart-panel">
     <div class="chart-title" id="chart-title">Sectors — Absolute vs Relative Score (vs SPY)</div>
 
-    <!-- Tail length selector -->
+    <!-- Tail length selector + quadrant legend -->
     <div class="tail-controls">
       <label>Tail Length:</label>
       <button class="tail-btn active" data-weeks="0" onclick="setTail(0)">Off</button>
@@ -228,18 +228,17 @@ footer {
       <button class="tail-btn" data-weeks="8" onclick="setTail(8)">8 wk</button>
       <button class="tail-btn" data-weeks="10" onclick="setTail(10)">10 wk</button>
       <button class="tail-btn" data-weeks="12" onclick="setTail(12)">12 wk</button>
+      <span style="margin-left:auto;"></span>
+      <div class="quad-legend">
+        <div class="ql"><span class="ql-swatch" style="background:rgba(34,197,94,.18)"></span> Oversold+Out</div>
+        <div class="ql"><span class="ql-swatch" style="background:rgba(239,68,68,.18)"></span> Overbought+Out</div>
+        <div class="ql"><span class="ql-swatch" style="background:rgba(59,130,246,.10)"></span> Oversold+Under</div>
+        <div class="ql"><span class="ql-swatch" style="background:rgba(251,191,36,.14)"></span> Overbought+Under</div>
+      </div>
     </div>
 
     <div class="chart-container">
       <canvas id="scatterChart"></canvas>
-    </div>
-
-    <!-- Quadrant legend -->
-    <div class="quad-legend">
-      <div class="ql"><span class="ql-swatch" style="background:rgba(34,197,94,.18)"></span> Oversold + Outperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(239,68,68,.18)"></span> Overbought + Outperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(59,130,246,.10)"></span> Oversold + Underperforming</div>
-      <div class="ql"><span class="ql-swatch" style="background:rgba(251,191,36,.14)"></span> Overbought + Underperforming</div>
     </div>
   </div>
 
@@ -550,7 +549,7 @@ function rebuildChart() {
     plugins: [quadrantPlugin],
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       animation: { duration: 300 },
       layout: {
         padding: { top: 10, right: 10, bottom: 36, left: 40 }
