@@ -120,6 +120,33 @@ td.chk input[type="checkbox"] {
   accent-color: var(--accent);
 }
 
+/* ── Select all / deselect buttons ── */
+.sel-btns {
+  display: flex; gap: 6px; padding: 6px 0; font-size: 11px;
+}
+.sel-btn {
+  background: #f1f5f9; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--accent); font-size: 11px; font-weight: 600; padding: 2px 10px;
+  cursor: pointer;
+}
+.sel-btn:hover { background: #e0e7ff; }
+
+/* ── Guide panel ── */
+.guide-panel {
+  max-width: 820px; margin: 20px auto; padding: 0 20px;
+}
+.guide-panel h2 { font-size: 18px; font-weight: 700; color: var(--text); margin: 24px 0 10px; }
+.guide-panel h2:first-child { margin-top: 0; }
+.guide-panel h3 { font-size: 14px; font-weight: 700; color: var(--accent); margin: 18px 0 6px; }
+.guide-panel p { font-size: 13.5px; line-height: 1.6; color: var(--text); margin-bottom: 10px; }
+.guide-panel .tip { background: #eff6ff; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px; color: #1e40af; }
+.guide-panel .warn { background: #fef3c7; border-left: 3px solid #d97706; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px; color: #92400e; }
+.guide-panel table { border-collapse: collapse; width: 100%; margin: 10px 0 16px; font-size: 13px; }
+.guide-panel th { background: var(--header); color: #93c5fd; padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.guide-panel td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.guide-panel .quad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.guide-panel .quad-box { padding: 10px 12px; border-radius: 6px; font-size: 12.5px; }
+
 /* ── How it works bar ── */
 .how-it-works {
   background: var(--card); border: 1px solid var(--border); border-radius: 8px;
@@ -210,6 +237,7 @@ footer {
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="sectors" onclick="switchTab('sectors')">Sectors</button>
   <button class="tab-btn" data-tab="factors" onclick="switchTab('factors')">Factors</button>
+  <button class="tab-btn" data-tab="guide" onclick="switchTab('guide')">Guide</button>
 </div>
 
 <!-- Main content: chart first (65%), table second (35%) -->
@@ -247,6 +275,10 @@ footer {
 
     <!-- Sectors table -->
     <div id="panel-sectors">
+      <div class="sel-btns">
+        <button class="sel-btn" onclick="toggleAll('sectors',true)">Select All</button>
+        <button class="sel-btn" onclick="toggleAll('sectors',false)">Deselect All</button>
+      </div>
       <table class="analysis-table" id="tbl-sectors">
         <thead>
           <tr>
@@ -277,6 +309,10 @@ footer {
 
     <!-- Factors table (hidden by default) -->
     <div id="panel-factors" style="display:none;">
+      <div class="sel-btns">
+        <button class="sel-btn" onclick="toggleAll('factors',true)">Select All</button>
+        <button class="sel-btn" onclick="toggleAll('factors',false)">Deselect All</button>
+      </div>
       <table class="analysis-table" id="tbl-factors">
         <thead>
           <tr>
@@ -331,6 +367,82 @@ footer {
 
 </div><!-- /content -->
 
+<!-- GUIDE PANEL (hidden by default) -->
+<div class="guide-panel" id="panel-guide" style="display:none;">
+
+  <h2>How to Use This Dashboard</h2>
+  <p>This tool scores S&P 500 sector ETFs and US equity style/factor ETFs on two dimensions — <b>Absolute Score</b> and <b>Relative Score (vs SPY)</b> — to help identify which areas of the market are overbought or oversold, both in isolation and relative to the S&P 500.</p>
+
+  <h3>What the Scores Mean</h3>
+  <p>Each score maps to a range of <b>−1.00</b> (extremely oversold) to <b>+1.00</b> (extremely overbought), based on where the ETF's price sits within its trailing 52-week range.</p>
+
+  <table>
+    <tr><th>Score Range</th><th>Reading</th><th>Interpretation</th></tr>
+    <tr><td style="background:#064e2a;color:#86efac;text-align:center;font-weight:700;">−1.00 to −0.60</td><td>Extremely Oversold</td><td>Deep in the lower end of 52-week range — potential value opportunity</td></tr>
+    <tr><td style="background:#16a34a;color:#fff;text-align:center;font-weight:700;">−0.60 to −0.20</td><td>Oversold</td><td>Below midpoint — could be a good time to increase holdings</td></tr>
+    <tr><td style="background:#e5e7eb;color:#374151;text-align:center;font-weight:700;">−0.20 to +0.20</td><td>Fair Value</td><td>Near the middle of its range — no strong signal</td></tr>
+    <tr><td style="background:#ef4444;color:#fff;text-align:center;font-weight:700;">+0.20 to +0.60</td><td>Overbought</td><td>Above midpoint — could be a good time to trim</td></tr>
+    <tr><td style="background:#991b1b;color:#fecaca;text-align:center;font-weight:700;">+0.60 to +1.00</td><td>Extremely Overbought</td><td>Near the top of 52-week range — extended, be cautious</td></tr>
+  </table>
+
+  <h3>Absolute vs Relative Score</h3>
+  <table>
+    <tr><th>Score</th><th>What It Measures</th><th>Example</th></tr>
+    <tr><td><b>Absolute Score</b></td><td>Where the ETF's price sits in its own 52-week high/low range</td><td>XLK at +0.54 means Technology is 77% of the way from its 52-week low to its high</td></tr>
+    <tr><td><b>Relative Score (vs SPY)</b></td><td>Same calculation applied to the ETF÷SPY price ratio</td><td>XLK at +0.58 relative means it's outperforming SPY and near the top of that outperformance range</td></tr>
+  </table>
+
+  <h3>Reading the Scatter Chart</h3>
+  <p>The chart plots Absolute Score on the X-axis and Relative Score on the Y-axis. This creates four quadrants:</p>
+
+  <div class="quad-grid">
+    <div class="quad-box" style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);">
+      <b style="color:#16a34a;">↖ Top-Left: Oversold + Outperforming</b><br>
+      Cheap but showing relative strength vs SPY. Often the most interesting quadrant for new positions.
+    </div>
+    <div class="quad-box" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);">
+      <b style="color:#dc2626;">↗ Top-Right: Overbought + Outperforming</b><br>
+      Strong and expensive. Momentum is positive but be aware of potential mean reversion.
+    </div>
+    <div class="quad-box" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);">
+      <b style="color:#2563eb;">↙ Bottom-Left: Oversold + Underperforming</b><br>
+      Weak and cheap. Could be contrarian value, or a falling knife — context matters.
+    </div>
+    <div class="quad-box" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);">
+      <b style="color:#d97706;">↘ Bottom-Right: Overbought + Underperforming</b><br>
+      Expensive but losing relative strength. Potential trim or rotation candidate.
+    </div>
+  </div>
+
+  <h3>Using the Tails</h3>
+  <p>The tail feature is what makes this tool most actionable. When you select a tail length (4, 6, 8, 10, or 12 weeks), each checked ETF shows a trailing path of its weekly score positions. This reveals the <b>direction of travel</b> — not just where something is, but where it's heading.</p>
+
+  <div class="tip">
+    <b>Key insight:</b> An ETF moving from the bottom-left toward the top-right is gaining both absolute and relative strength — that's a momentum signal. An ETF moving from top-right toward bottom-left is weakening on both fronts — potential distribution.
+  </div>
+
+  <h3>Two Tabs</h3>
+  <table>
+    <tr><th>Tab</th><th>Coverage</th><th>Best For</th></tr>
+    <tr><td><b>Sectors</b></td><td>12 S&P 500 sector ETFs (XLK, XLF, XLE, etc.)</td><td>Sector rotation decisions — where to overweight/underweight</td></tr>
+    <tr><td><b>Factors</b></td><td>22 style & factor ETFs (size, value, growth, momentum, quality, international, etc.)</td><td>Style/factor tilts — growth vs value, large vs small, US vs international</td></tr>
+  </table>
+
+  <h3>Practical Workflow</h3>
+  <p><b>1. Start with the table.</b> Sort by Relative Score to see which areas are most oversold or overbought vs the S&P 500. Green cells = oversold (opportunity), red cells = overbought (caution).</p>
+  <p><b>2. Check interesting ETFs.</b> Select the ones you want to compare on the scatter chart. Use Select All to see the full picture, or pick a focused set.</p>
+  <p><b>3. Turn on tails.</b> Start with 4 weeks for recent momentum, extend to 8–12 weeks for the bigger trend. Watch for ETFs crossing quadrant boundaries — that's where the signal is strongest.</p>
+  <p><b>4. Compare tabs.</b> The Sectors tab shows where capital is flowing within the market. The Factors tab shows which investment styles are in or out of favor.</p>
+
+  <div class="warn">
+    <b>Important:</b> Scores can remain extremely overbought or oversold for extended periods. These are positioning signals to inform allocation decisions — they are not precise timing signals. Patience and context are required.
+  </div>
+
+  <h3>Data & Refresh</h3>
+  <p>Price data comes from Yahoo Finance. Scores are computed using a rolling 52-week lookback window. Data refreshes automatically after US market close (3:40 PM CT on trading days). Cached results load instantly on repeat visits.</p>
+
+</div>
+
 <footer>
   Data: Yahoo Finance &nbsp;|&nbsp; Scores: 52-week percentile rank mapped [−1, +1] vs SPY &nbsp;|&nbsp;
   Refresh after market close (3 PM CT) &nbsp;|&nbsp; Click any column to sort
@@ -358,13 +470,35 @@ let sortState   = { sectors: { col: 3, asc: true }, factors: { col: 3, asc: true
 
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b => {
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
+
+  var contentEl = document.querySelector('.content');
+  var guideEl   = document.getElementById('panel-guide');
+
+  if (tab === 'guide') {
+    contentEl.style.display = 'none';
+    guideEl.style.display = '';
+    return;
+  }
+
+  contentEl.style.display = '';
+  guideEl.style.display = 'none';
   document.getElementById('panel-sectors').style.display = tab === 'sectors' ? '' : 'none';
   document.getElementById('panel-factors').style.display = tab === 'factors' ? '' : 'none';
   document.getElementById('chart-title').textContent =
     (tab === 'sectors' ? 'Sectors' : 'Factors') + ' \u2014 Absolute vs Relative Score (vs SPY)';
+  rebuildChart();
+}
+
+
+// ── Select All / Deselect All ──
+
+function toggleAll(group, checked) {
+  document.querySelectorAll('input[data-group="' + group + '"]').forEach(function(cb) {
+    cb.checked = checked;
+  });
   rebuildChart();
 }
 
