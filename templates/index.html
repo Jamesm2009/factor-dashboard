@@ -196,6 +196,25 @@ footer {
   text-align: center; padding: 12px 20px; color: var(--muted); font-size: 11px;
   border-top: 1px solid var(--border); background: var(--surface); margin-top: 6px;
 }
+
+/* ── Style Charts 2×2 grid ── */
+.styles-panel { padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+.styles-panel h2 { font-size: 16px; font-weight: 700; color: var(--text); margin: 20px 0 4px; }
+.styles-panel h2:first-child { margin-top: 0; }
+.styles-panel .styles-desc { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.chart-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
+}
+@media (max-width: 800px) { .chart-grid { grid-template-columns: 1fr; } }
+.chart-cell {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px;
+}
+.chart-cell h3 {
+  font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.chart-cell canvas { width: 100% !important; height: 260px !important; }
 </style>
 </head>
 <body>
@@ -237,6 +256,7 @@ footer {
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="sectors" onclick="switchTab('sectors')">Sectors</button>
   <button class="tab-btn" data-tab="factors" onclick="switchTab('factors')">Factors</button>
+  <button class="tab-btn" data-tab="styles" onclick="switchTab('styles')">Styles</button>
   <button class="tab-btn" data-tab="guide" onclick="switchTab('guide')">Guide</button>
 </div>
 
@@ -367,6 +387,29 @@ footer {
 
 </div><!-- /content -->
 
+<!-- STYLES PANEL (hidden by default) -->
+<div class="styles-panel" id="panel-styles" style="display:none;">
+
+  <h2>Sector Styles</h2>
+  <p class="styles-desc">The market rotates between Defensives, Sensitives, and Cyclicals. This layout shows where momentum sits right now — trailing 3-month cumulative returns.</p>
+  <div class="chart-grid">
+    <div class="chart-cell"><h3>Overview</h3><canvas id="sc-overview"></canvas></div>
+    <div class="chart-cell"><h3>Defensives — XLV · XLP · XLU</h3><canvas id="sc-defensives"></canvas></div>
+    <div class="chart-cell"><h3>Sensitives — XLK · XLI · XLC · XLE</h3><canvas id="sc-sensitives"></canvas></div>
+    <div class="chart-cell"><h3>Cyclicals — XLRE · XLF · XLY · XLB</h3><canvas id="sc-cyclicals"></canvas></div>
+  </div>
+
+  <h2>Style Factors</h2>
+  <p class="styles-desc">Four styles in one view. When Beta, Growth, Value, and Safety are plotted together, the momentum leader becomes hard to miss.</p>
+  <div class="chart-grid">
+    <div class="chart-cell"><h3>Beta — SPHB · SPY · SPLV</h3><canvas id="fc-beta"></canvas></div>
+    <div class="chart-cell"><h3>Growth — MGK · IVW · IWF · QQQ</h3><canvas id="fc-growth"></canvas></div>
+    <div class="chart-cell"><h3>Safety — MTUM · QUAL · VYM · SPHD</h3><canvas id="fc-safety"></canvas></div>
+    <div class="chart-cell"><h3>Value — IWM · VBR · VTV · IWD</h3><canvas id="fc-value"></canvas></div>
+  </div>
+
+</div>
+
 <!-- GUIDE PANEL (hidden by default) -->
 <div class="guide-panel" id="panel-guide" style="display:none;">
 
@@ -476,15 +519,23 @@ function switchTab(tab) {
 
   var contentEl = document.querySelector('.content');
   var guideEl   = document.getElementById('panel-guide');
+  var stylesEl  = document.getElementById('panel-styles');
+
+  contentEl.style.display = 'none';
+  guideEl.style.display   = 'none';
+  stylesEl.style.display  = 'none';
 
   if (tab === 'guide') {
-    contentEl.style.display = 'none';
     guideEl.style.display = '';
+    return;
+  }
+  if (tab === 'styles') {
+    stylesEl.style.display = '';
+    buildStyleCharts();
     return;
   }
 
   contentEl.style.display = '';
-  guideEl.style.display = 'none';
   document.getElementById('panel-sectors').style.display = tab === 'sectors' ? '' : 'none';
   document.getElementById('panel-factors').style.display = tab === 'factors' ? '' : 'none';
   document.getElementById('chart-title').textContent =
@@ -500,6 +551,115 @@ function toggleAll(group, checked) {
     cb.checked = checked;
   });
   rebuildChart();
+}
+
+
+// ── Style Charts (Chart.js line charts) ──
+
+var styleChartsBuilt = false;
+var styleChartInstances = [];
+
+var STYLE_LINE_COLORS = [
+  '#dc2626','#2563eb','#16a34a','#d97706','#7c3aed',
+  '#0891b2','#db2777','#65a30d','#ea580c','#0d9488',
+  '#4f46e5','#be123c'
+];
+
+function buildStyleCharts() {
+  if (styleChartsBuilt) return;
+  var sc = ALL_DATA.style_charts;
+  if (!sc) return;
+
+  // Sector overview
+  if (sc.sector_overview) {
+    buildLineChart('sc-overview', sc.sector_overview);
+  }
+  // Sector panels
+  var sectorIds = ['sc-defensives','sc-sensitives','sc-cyclicals'];
+  (sc.sector_panels || []).forEach(function(panel, i) {
+    if (sectorIds[i]) buildLineChart(sectorIds[i], panel);
+  });
+  // Factor panels
+  var factorIds = ['fc-beta','fc-growth','fc-safety','fc-value'];
+  (sc.factor_panels || []).forEach(function(panel, i) {
+    if (factorIds[i]) buildLineChart(factorIds[i], panel);
+  });
+
+  styleChartsBuilt = true;
+}
+
+function buildLineChart(canvasId, panelData) {
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  var datasets = panelData.series.map(function(s, idx) {
+    return {
+      label: s.symbol,
+      data: s.values,
+      borderColor: STYLE_LINE_COLORS[idx % STYLE_LINE_COLORS.length],
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: 0.3,
+    };
+  });
+
+  // Thin every Nth label for readability
+  var labels = panelData.dates || [];
+  var step = Math.max(1, Math.floor(labels.length / 8));
+
+  var inst = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      layout: { padding: { right: 8 } },
+      scales: {
+        x: {
+          ticks: {
+            color: 'rgba(0,0,0,0.4)',
+            font: { size: 10 },
+            maxRotation: 0,
+            callback: function(val, idx) { return idx % step === 0 ? labels[idx] : ''; }
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          border: { color: 'rgba(0,0,0,0.08)' },
+        },
+        y: {
+          ticks: {
+            color: 'rgba(0,0,0,0.4)',
+            font: { size: 10 },
+            callback: function(v) { return v.toFixed(1) + '%'; },
+          },
+          grid: {
+            color: function(ctx) {
+              return ctx.tick && ctx.tick.value === 0 ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.04)';
+            },
+          },
+          border: { color: 'rgba(0,0,0,0.08)' },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true, position: 'bottom',
+          labels: { color: 'rgba(0,0,0,0.6)', font: { size: 11, weight: '600' }, boxWidth: 14, padding: 10, usePointStyle: true },
+        },
+        tooltip: {
+          backgroundColor: '#1e293b', borderColor: '#475569', borderWidth: 1,
+          titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+          callbacks: {
+            label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%'; }
+          }
+        },
+        datalabels: { display: false },
+      },
+    },
+  });
+  styleChartInstances.push(inst);
 }
 
 
