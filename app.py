@@ -20,9 +20,28 @@ REDIS_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 REDIS_KEY   = "factor_sector_dash_v1"
 
+# ── Style chart group definitions ─────────────────────────────────────────────
+
+SECTOR_STYLE_GROUPS = [
+    {"title": "Defensives", "tickers": ["XLV", "XLP", "XLU"]},
+    {"title": "Sensitives", "tickers": ["XLK", "XLI", "XLC", "XLE"]},
+    {"title": "Cyclicals",  "tickers": ["XLRE", "XLF", "XLY", "XLB"]},
+]
+
+FACTOR_STYLE_GROUPS = [
+    {"title": "Beta",   "tickers": ["SPHB", "SPY", "SPLV"]},
+    {"title": "Growth", "tickers": ["MGK", "IVW", "IWF", "QQQ"]},
+    {"title": "Safety", "tickers": ["MTUM", "QUAL", "VYM", "SPHD"]},
+    {"title": "Value",  "tickers": ["IWM", "VBR", "VTV", "IWD"]},
+]
+
+# Extra tickers only needed for style charts (not in sectors/factors lists)
+STYLE_EXTRA_TICKERS = {"IWF", "QQQ", "QUAL", "SPHD", "IWD"}
+
 cache = {
     "sectors": [],
     "factors": [],
+    "style_charts": {},
     "last_updated": "Loading...",
     "phase": 0,
     "progress": "Starting...",
@@ -170,6 +189,73 @@ def compute_scores(ticker_closes, spy_closes, lookback_weeks=52, tail_weeks=12):
     }
 
 
+def compute_style_charts(closes_all, days=63):
+    """
+    Compute trailing cumulative returns for style chart groups.
+    Returns dict with sector_styles and factor_styles panel data.
+    """
+    def panel_series(groups):
+        panels = []
+        for group in groups:
+            title   = group["title"]
+            tickers = group["tickers"]
+            series  = []
+            common_dates = None
+
+            for ticker in tickers:
+                if ticker not in closes_all.columns:
+                    continue
+                closes = closes_all[ticker].dropna()
+                tail   = closes.tail(days)
+                if len(tail) < 10:
+                    continue
+                base    = tail.iloc[0]
+                returns = ((tail / base) - 1) * 100
+                dates   = [d.strftime("%b %d") for d in returns.index]
+                values  = [round(float(v), 2) for v in returns.values]
+                series.append({"symbol": ticker, "values": values})
+                if common_dates is None:
+                    common_dates = dates
+
+            if series:
+                panels.append({
+                    "title":  title,
+                    "dates":  common_dates,
+                    "series": series,
+                })
+        return panels
+
+    sector_panels = panel_series(SECTOR_STYLE_GROUPS)
+    factor_panels = panel_series(FACTOR_STYLE_GROUPS)
+
+    # Build sector overview panel (group averages)
+    overview = None
+    if sector_panels:
+        ref_dates = sector_panels[0]["dates"]
+        n_dates   = len(ref_dates)
+        overview_series = []
+        for panel in sector_panels:
+            vals = [s["values"] for s in panel["series"]]
+            if not vals:
+                continue
+            min_len = min(len(v) for v in vals)
+            avg = [round(sum(v[i] for v in vals) / len(vals), 2)
+                   for i in range(min_len)]
+            overview_series.append({"symbol": panel["title"], "values": avg})
+        if overview_series:
+            overview = {
+                "title":  "Overview",
+                "dates":  ref_dates[:min(len(s["values"]) for s in overview_series)],
+                "series": overview_series,
+            }
+
+    return {
+        "sector_overview": overview,
+        "sector_panels":   sector_panels,
+        "factor_panels":   factor_panels,
+    }
+
+
 # ── Main update ───────────────────────────────────────────────────────────────
 
 def run_update():
@@ -181,12 +267,13 @@ def run_update():
     try:
         funds = load_funds()
 
-        # Collect all unique tickers + SPY benchmark
+        # Collect all unique tickers + SPY + style chart extras
         all_tickers = set()
         for group in ("sectors", "factors"):
             for f in funds[group]:
                 all_tickers.add(f["symbol"])
         all_tickers.add("SPY")
+        all_tickers.update(STYLE_EXTRA_TICKERS)
         ticker_list = sorted(all_tickers)
 
         with _lock:
@@ -271,6 +358,14 @@ def run_update():
             with _lock:
                 cache[group] = results
 
+        # Compute style charts
+        with _lock:
+            cache["progress"] = "Computing style charts..."
+        print("  Computing style charts...")
+        style_data = compute_style_charts(closes_all)
+        with _lock:
+            cache["style_charts"] = style_data
+
         with _lock:
             cache["phase"]        = 4
             cache["progress"]     = "Complete"
@@ -280,6 +375,7 @@ def run_update():
         payload = {
             "sectors":      cache["sectors"],
             "factors":      cache["factors"],
+            "style_charts": cache["style_charts"],
             "last_updated": cache["last_updated"],
         }
         ok = redis_set(REDIS_KEY, payload)
@@ -307,6 +403,7 @@ def _ensure_started():
             with _lock:
                 cache["sectors"]      = payload["sectors"]
                 cache["factors"]      = payload["factors"]
+                cache["style_charts"] = payload.get("style_charts", {})
                 cache["last_updated"] = payload.get("last_updated", "—")
                 cache["phase"]        = 4
                 cache["progress"]     = "Loaded from cache"
@@ -323,9 +420,14 @@ def _ensure_started():
 def index():
     _ensure_started()
     with _lock:
-        sectors   = list(cache.get("sectors", []))
-        factors   = list(cache.get("factors", []))
-        data_json = json.dumps({"sectors": sectors, "factors": factors})
+        sectors      = list(cache.get("sectors", []))
+        factors      = list(cache.get("factors", []))
+        style_charts = cache.get("style_charts", {})
+        data_json    = json.dumps({
+            "sectors": sectors,
+            "factors": factors,
+            "style_charts": style_charts,
+        })
 
     return render_template(
         "index.html",
@@ -347,6 +449,7 @@ def refresh():
     with _lock:
         cache["sectors"] = []
         cache["factors"] = []
+        cache["style_charts"] = {}
         cache["phase"]   = 0
         cache["progress"] = "Starting..."
         cache["error"]   = None
