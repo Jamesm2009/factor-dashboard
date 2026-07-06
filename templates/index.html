@@ -860,6 +860,7 @@ function buildYTDChart() {
           titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
           callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%'; } }
         },
+        datalabels: { display: false },
       },
     },
   });
@@ -956,6 +957,7 @@ function buildSeasonChart() {
           titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
           callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%'; } }
         },
+        datalabels: { display: false },
       },
     },
   });
