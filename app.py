@@ -530,7 +530,7 @@ def run_update():
             cache["progress"] = "Computing YTD chart data..."
         print("  Computing YTD rebased data...")
         sector_factor_tickers = sorted(
-            {f["symbol"] for f in funds["sectors"]} | {f["symbol"] for f in funds["factors"]}
+            {f["symbol"] for f in funds["sectors"]} | {f["symbol"] for f in funds["factors"]} | {"SPY"}
         )
         ytd_data = compute_ytd_rebased(closes_all, sector_factor_tickers)
         with _lock:
