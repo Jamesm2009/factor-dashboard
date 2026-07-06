@@ -3,6 +3,11 @@ Factor & Sector Analysis Dashboard — yFinance + Upstash Redis cache
 Absolute Score: where price sits in its 52-week range, mapped to [-1, +1]
 Relative Score: same calculation on the ETF/SPY price ratio
 Tails: weekly snapshots showing score trajectory over 4–12 weeks
+
+NEW:
+- YTD Rebased chart data (per ticker, indexed to 0% at first trading day of year)
+- Seasonality chart data (25-year average return path by trading-day-of-year,
+  cached separately in Redis with a long TTL since it's a heavy download)
 """
 
 from flask import Flask, render_template, jsonify
@@ -18,7 +23,10 @@ CT = ZoneInfo("America/Chicago")
 
 REDIS_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
-REDIS_KEY   = "factor_sector_dash_v1"
+REDIS_KEY        = "factor_sector_dash_v1"
+REDIS_KEY_SEASON = "factor_seasonality_v1"
+SEASON_TTL       = 7 * 24 * 3600   # 7 days — seasonality rarely needs to change
+SEASONALITY_YEARS = 25
 
 # ── Style chart group definitions ─────────────────────────────────────────────
 
@@ -42,7 +50,10 @@ cache = {
     "sectors": [],
     "factors": [],
     "style_charts": {},
+    "ytd_rebased": {},
+    "seasonality": {},
     "last_updated": "Loading...",
+    "season_last_updated": "Never",
     "phase": 0,
     "progress": "Starting...",
     "error": None,
@@ -232,7 +243,6 @@ def compute_style_charts(closes_all, days=63):
     overview = None
     if sector_panels:
         ref_dates = sector_panels[0]["dates"]
-        n_dates   = len(ref_dates)
         overview_series = []
         for panel in sector_panels:
             vals = [s["values"] for s in panel["series"]]
@@ -254,6 +264,155 @@ def compute_style_charts(closes_all, days=63):
         "sector_panels":   sector_panels,
         "factor_panels":   factor_panels,
     }
+
+
+# ── YTD rebased chart ──────────────────────────────────────────────────────────
+
+def compute_ytd_rebased(closes_all, ticker_list):
+    """
+    For each ticker, rebase this calendar year's closes to 0% at the first
+    trading day of the year. Returns {ticker: [pct_return, pct_return, ...]}
+    indexed by trading-day-of-year (0-based).
+    """
+    this_year = date.today().year
+    out = {}
+    for ticker in ticker_list:
+        if ticker not in closes_all.columns:
+            continue
+        c = closes_all[ticker].dropna()
+        yr = c[c.index.year == this_year].sort_index()
+        if len(yr) < 2:
+            continue
+        base = yr.iloc[0]
+        vals = ((yr / base) - 1) * 100
+        out[ticker] = [round(float(v), 2) for v in vals.values]
+    return out
+
+
+# ── Seasonality (25-year average by trading-day-of-year) ─────────────────────
+
+def compute_seasonality(ticker_list, years=SEASONALITY_YEARS):
+    """
+    Downloads `years` of daily history for each ticker, computes each
+    calendar year's return path rebased to 0% at day 1, then averages
+    across all *complete* prior years (current partial year excluded).
+    Also computes average trading-day index of each month-end (from SPY)
+    so the frontend can draw aligned vertical month markers.
+    """
+    end_date   = date.today() + timedelta(days=1)
+    start_date = end_date - timedelta(days=365 * years + 30)
+
+    print(f"  Seasonality: downloading {years}y history for {len(ticker_list)} tickers...")
+    df = yf.download(
+        ticker_list,
+        start=start_date.strftime("%Y-%m-%d"),
+        end=end_date.strftime("%Y-%m-%d"),
+        progress=False,
+        threads=True,
+    )
+    if df.empty:
+        return None
+
+    if isinstance(df.columns, pd.MultiIndex):
+        level0 = df.columns.get_level_values(0)
+        closes_all = df["Close"] if "Close" in level0 else df["Adj Close"]
+    else:
+        closes_all = df
+
+    this_year   = date.today().year
+    series_out  = {}
+    spy_years   = {}   # year -> sorted Series, used for month-end index calc
+
+    for ticker in ticker_list:
+        if ticker not in closes_all.columns:
+            continue
+        c = closes_all[ticker].dropna()
+        if c.empty:
+            continue
+
+        by_year = {}
+        for yr, grp in c.groupby(c.index.year):
+            grp = grp.sort_index()
+            if len(grp) < 30:
+                continue
+            base = grp.iloc[0]
+            rets = ((grp / base) - 1) * 100
+            by_year[yr] = rets.values.tolist()
+            if ticker == "SPY":
+                spy_years[yr] = grp
+
+        complete = {y: v for y, v in by_year.items() if y != this_year}
+        if not complete:
+            continue
+
+        max_days = max(len(v) for v in complete.values())
+        avg = []
+        for day_i in range(max_days):
+            vals = [v[day_i] for v in complete.values() if day_i < len(v)]
+            if len(vals) >= 3:   # require at least 3 years of coverage at this point
+                avg.append(round(sum(vals) / len(vals), 2))
+        if avg:
+            series_out[ticker] = avg
+
+    # Average month-end trading-day index across complete years, from SPY
+    month_end_idx = []
+    complete_spy_years = {y: g for y, g in spy_years.items() if y != this_year}
+    if complete_spy_years:
+        per_year_idx = []
+        for yr, grp in complete_spy_years.items():
+            months = grp.index.month
+            idxs = []
+            for m in range(1, 13):
+                positions = [i for i, mm in enumerate(months) if mm == m]
+                if positions:
+                    idxs.append(positions[-1])
+            if len(idxs) == 12:
+                per_year_idx.append(idxs)
+        if per_year_idx:
+            for mi in range(12):
+                vals = [p[mi] for p in per_year_idx]
+                month_end_idx.append(round(sum(vals) / len(vals)))
+
+    if not series_out:
+        return None
+
+    return {"series": series_out, "month_end_idx": month_end_idx}
+
+
+def ensure_seasonality(force=False):
+    """Load seasonality from Redis if cached; otherwise compute it in the
+    background (non-blocking) since it's a heavy 25-year download."""
+    if not force:
+        cached = redis_get(REDIS_KEY_SEASON)
+        if cached:
+            with _lock:
+                cache["seasonality"]         = cached
+                cache["season_last_updated"] = cached.get("_updated", "—")
+            print("  Seasonality: loaded from Redis cache.")
+            return
+
+    def _bg():
+        try:
+            funds = load_funds()
+            tickers = sorted(
+                {f["symbol"] for f in funds["sectors"]}
+                | {f["symbol"] for f in funds["factors"]}
+                | {"SPY"}
+            )
+            result = compute_seasonality(tickers)
+            if result:
+                result["_updated"] = datetime.now(CT).strftime("%-m/%-d/%y %H:%M CT")
+                with _lock:
+                    cache["seasonality"]         = result
+                    cache["season_last_updated"] = result["_updated"]
+                redis_set(REDIS_KEY_SEASON, result, ex_seconds=SEASON_TTL)
+                print("  Seasonality: computed and cached.")
+            else:
+                print("  Seasonality: computation returned no data.")
+        except Exception as e:
+            import traceback; traceback.print_exc()
+
+    threading.Thread(target=_bg, daemon=True).start()
 
 
 # ── Main update ───────────────────────────────────────────────────────────────
@@ -366,6 +525,17 @@ def run_update():
         with _lock:
             cache["style_charts"] = style_data
 
+        # Compute YTD rebased chart data
+        with _lock:
+            cache["progress"] = "Computing YTD chart data..."
+        print("  Computing YTD rebased data...")
+        sector_factor_tickers = sorted(
+            {f["symbol"] for f in funds["sectors"]} | {f["symbol"] for f in funds["factors"]}
+        )
+        ytd_data = compute_ytd_rebased(closes_all, sector_factor_tickers)
+        with _lock:
+            cache["ytd_rebased"] = ytd_data
+
         with _lock:
             cache["phase"]        = 4
             cache["progress"]     = "Complete"
@@ -376,11 +546,15 @@ def run_update():
             "sectors":      cache["sectors"],
             "factors":      cache["factors"],
             "style_charts": cache["style_charts"],
+            "ytd_rebased":  cache["ytd_rebased"],
             "last_updated": cache["last_updated"],
         }
         ok = redis_set(REDIS_KEY, payload)
         print(f"  Redis save: {'OK' if ok else 'FAILED'}")
         print(f"Done — {len(cache['sectors'])} sectors, {len(cache['factors'])} factors.")
+
+        # Seasonality is heavy (25y history) — only (re)compute if not already cached
+        ensure_seasonality(force=False)
 
     except Exception as e:
         import traceback
@@ -404,12 +578,14 @@ def _ensure_started():
                 cache["sectors"]      = payload["sectors"]
                 cache["factors"]      = payload["factors"]
                 cache["style_charts"] = payload.get("style_charts", {})
+                cache["ytd_rebased"]  = payload.get("ytd_rebased", {})
                 cache["last_updated"] = payload.get("last_updated", "—")
                 cache["phase"]        = 4
                 cache["progress"]     = "Loaded from cache"
             n_s = len(cache["sectors"])
             n_f = len(cache["factors"])
             print(f"  Redis restored: {n_s} sectors, {n_f} factors.")
+            ensure_seasonality(force=False)
         else:
             trigger_update()
 
@@ -423,10 +599,14 @@ def index():
         sectors      = list(cache.get("sectors", []))
         factors      = list(cache.get("factors", []))
         style_charts = cache.get("style_charts", {})
+        ytd_rebased  = cache.get("ytd_rebased", {})
+        seasonality  = cache.get("seasonality", {})
         data_json    = json.dumps({
-            "sectors": sectors,
-            "factors": factors,
+            "sectors":      sectors,
+            "factors":      factors,
             "style_charts": style_charts,
+            "ytd_rebased":  ytd_rebased,
+            "seasonality":  seasonality,
         })
 
     return render_template(
@@ -435,6 +615,7 @@ def index():
         factors=factors,
         data_json=data_json,
         last_updated=cache["last_updated"],
+        season_last_updated=cache["season_last_updated"],
         is_loading=cache["phase"] < 4,
         phase=cache["phase"],
         progress=cache["progress"],
@@ -444,12 +625,15 @@ def index():
 
 @app.route("/refresh")
 def refresh():
+    """Force a full fresh reload of scores/YTD data (does NOT touch seasonality —
+    use /refresh-seasonality for that, since it's a much heavier 25-year pull)."""
     global _started
     redis_del(REDIS_KEY)
     with _lock:
         cache["sectors"] = []
         cache["factors"] = []
         cache["style_charts"] = {}
+        cache["ytd_rebased"] = {}
         cache["phase"]   = 0
         cache["progress"] = "Starting..."
         cache["error"]   = None
@@ -457,6 +641,18 @@ def refresh():
     trigger_update()
     _started = True
     return jsonify({"status": "refresh started — check /status"})
+
+
+@app.route("/refresh-seasonality")
+def refresh_seasonality():
+    """Force a full recompute of the 25-year seasonality averages.
+    Only needs to run occasionally (e.g. monthly) — not part of the daily cron."""
+    redis_del(REDIS_KEY_SEASON)
+    with _lock:
+        cache["seasonality"] = {}
+        cache["season_last_updated"] = "Recomputing..."
+    ensure_seasonality(force=True)
+    return jsonify({"status": "seasonality refresh started — this can take a few minutes"})
 
 
 @app.route("/redis-test")
@@ -490,6 +686,8 @@ def status():
             "error":        cache["error"],
             "sectors":      len(cache.get("sectors", [])),
             "factors":      len(cache.get("factors", [])),
+            "seasonality_ready": bool(cache.get("seasonality", {}).get("series")),
+            "season_last_updated": cache.get("season_last_updated", "Never"),
         })
 
 
@@ -499,6 +697,8 @@ def api_data():
         return jsonify({
             "sectors":      cache["sectors"],
             "factors":      cache["factors"],
+            "ytd_rebased":  cache["ytd_rebased"],
+            "seasonality":  cache["seasonality"],
             "last_updated": cache["last_updated"],
         })
 
