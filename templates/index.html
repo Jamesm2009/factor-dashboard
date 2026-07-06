@@ -215,6 +215,31 @@ footer {
   padding-bottom: 6px; border-bottom: 1px solid var(--border);
 }
 .chart-cell canvas { width: 100% !important; height: 260px !important; }
+
+/* ── Seasonality panel ── */
+.season-panel { padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+.season-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+.season-group-btn {
+  background: #f1f5f9; border: 1px solid var(--border); border-radius: 5px;
+  padding: 5px 16px; font-size: 12px; font-weight: 700; letter-spacing: .3px;
+  color: var(--muted); cursor: pointer; text-transform: uppercase;
+}
+.season-group-btn:hover { border-color: var(--accent); color: var(--text); }
+.season-group-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.season-hint { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+.season-chart-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.season-chart-card h3 {
+  font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.season-chart-card h3 .sub { font-weight: 400; color: var(--muted); font-size: 11px; }
+.season-chart-container { position: relative; width: 100%; height: 260px; }
+.season-empty {
+  font-size: 12.5px; color: var(--muted); text-align: center; padding: 40px 10px;
+}
 </style>
 </head>
 <body>
@@ -257,6 +282,7 @@ footer {
   <button class="tab-btn active" data-tab="sectors" onclick="switchTab('sectors')">Sectors</button>
   <button class="tab-btn" data-tab="factors" onclick="switchTab('factors')">Factors</button>
   <button class="tab-btn" data-tab="styles" onclick="switchTab('styles')">Styles</button>
+  <button class="tab-btn" data-tab="seasonality" onclick="switchTab('seasonality')">Seasonality</button>
   <button class="tab-btn" data-tab="guide" onclick="switchTab('guide')">Guide</button>
 </div>
 
@@ -410,6 +436,30 @@ footer {
 
 </div>
 
+<!-- SEASONALITY PANEL (hidden by default) -->
+<div class="season-panel" id="panel-seasonality" style="display:none;">
+
+  <div class="season-toggle">
+    <button class="season-group-btn active" data-group="sectors" onclick="setSeasonGroup('sectors')">Sectors</button>
+    <button class="season-group-btn" data-group="factors" onclick="setSeasonGroup('factors')">Factors</button>
+  </div>
+  <p class="season-hint">
+    Top chart: this year's performance so far, rebased to 0% at Jan 1. <b>Click any line to highlight it</b> and add its 25-year seasonal average to the chart below — click again to remove it.
+    Both charts share the same trading-day-of-year axis so the month markers line up.
+  </p>
+
+  <div class="season-chart-card">
+    <h3>YTD Performance <span class="sub">rebased to 0% on Jan 1</span></h3>
+    <div class="season-chart-container"><canvas id="ytdChart"></canvas></div>
+  </div>
+
+  <div class="season-chart-card">
+    <h3>Average Seasonality <span class="sub" id="season-updated-label">25-year history</span></h3>
+    <div class="season-chart-container" id="seasonChartWrap"><canvas id="seasonChart"></canvas></div>
+  </div>
+
+</div>
+
 <!-- GUIDE PANEL (hidden by default) -->
 <div class="guide-panel" id="panel-guide" style="display:none;">
 
@@ -464,6 +514,13 @@ footer {
     <b>Key insight:</b> An ETF moving from the bottom-left toward the top-right is gaining both absolute and relative strength — that's a momentum signal. An ETF moving from top-right toward bottom-left is weakening on both fronts — potential distribution.
   </div>
 
+  <h3>Seasonality Tab</h3>
+  <p>Shows this year's performance so far (rebased to 0% at Jan 1) alongside the average seasonal path over the last 25 years. Click any line in the top chart to add its long-run seasonal average to the bottom chart — useful for spotting whether an ETF is running ahead of, or behind, its typical pattern for this time of year. Dashed vertical lines mark average month-end points so the two charts stay aligned.</p>
+
+  <div class="warn">
+    <b>Important:</b> Seasonality shows historical averages, not predictions. Any single year can and does deviate from the average — treat it as context, not a signal on its own.
+  </div>
+
   <h3>Two Tabs</h3>
   <table>
     <tr><th>Tab</th><th>Coverage</th><th>Best For</th></tr>
@@ -482,7 +539,7 @@ footer {
   </div>
 
   <h3>Data & Refresh</h3>
-  <p>Price data comes from Yahoo Finance. Scores are computed using a rolling 52-week lookback window. Data refreshes automatically after US market close (3:40 PM CT on trading days). Cached results load instantly on repeat visits.</p>
+  <p>Price data comes from Yahoo Finance. Scores are computed using a rolling 52-week lookback window. Data refreshes automatically after US market close (3:40 PM CT on trading days). Cached results load instantly on repeat visits. Seasonality data is refreshed separately (roughly monthly) since it requires a much larger historical download.</p>
 
 </div>
 
@@ -520,10 +577,12 @@ function switchTab(tab) {
   var contentEl = document.querySelector('.content');
   var guideEl   = document.getElementById('panel-guide');
   var stylesEl  = document.getElementById('panel-styles');
+  var seasonEl  = document.getElementById('panel-seasonality');
 
   contentEl.style.display = 'none';
   guideEl.style.display   = 'none';
   stylesEl.style.display  = 'none';
+  seasonEl.style.display  = 'none';
 
   if (tab === 'guide') {
     guideEl.style.display = '';
@@ -532,6 +591,11 @@ function switchTab(tab) {
   if (tab === 'styles') {
     stylesEl.style.display = '';
     buildStyleCharts();
+    return;
+  }
+  if (tab === 'seasonality') {
+    seasonEl.style.display = '';
+    buildSeasonalityView();
     return;
   }
 
@@ -660,6 +724,241 @@ function buildLineChart(canvasId, panelData) {
     },
   });
   styleChartInstances.push(inst);
+}
+
+
+// ── Seasonality (YTD chart + average seasonality chart, linked by click) ──
+
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let seasonGroup    = 'sectors';
+let selectedSeason = new Set();
+let ytdChart       = null;
+let seasonChart    = null;
+let ytdColorMap    = {};
+
+function setSeasonGroup(group) {
+  seasonGroup = group;
+  selectedSeason.clear();
+  document.querySelectorAll('.season-group-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.group === group);
+  });
+  buildSeasonalityView();
+}
+
+function buildSeasonalityView() {
+  var updated = (ALL_DATA.seasonality && ALL_DATA.seasonality._updated)
+    ? ('25-year history \u00b7 updated ' + ALL_DATA.seasonality._updated)
+    : '25-year history';
+  var lbl = document.getElementById('season-updated-label');
+  if (lbl) lbl.textContent = updated;
+
+  buildYTDChart();
+  buildSeasonChart();
+}
+
+function monthLinesPlugin(monthEndIdx) {
+  return {
+    id: 'monthLines',
+    afterDraw: function(chartInstance) {
+      if (!monthEndIdx || !monthEndIdx.length) return;
+      var ctx = chartInstance.ctx;
+      var area = chartInstance.chartArea;
+      var xScale = chartInstance.scales.x;
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = 1;
+      monthEndIdx.forEach(function(idx) {
+        var xp = xScale.getPixelForValue(idx);
+        ctx.beginPath();
+        ctx.moveTo(xp, area.top);
+        ctx.lineTo(xp, area.bottom);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+  };
+}
+
+function getMonthEndIdx() {
+  return (ALL_DATA.seasonality && ALL_DATA.seasonality.month_end_idx) || [];
+}
+
+function buildYTDChart() {
+  var list = ALL_DATA[seasonGroup] || [];
+  var ytd  = ALL_DATA.ytd_rebased || {};
+  var monthIdx = getMonthEndIdx();
+  var maxX = monthIdx.length ? monthIdx[monthIdx.length - 1] : 252;
+
+  ytdColorMap = {};
+  var datasets = [];
+
+  list.forEach(function(item, idx) {
+    var color = COLORS[idx % COLORS.length];
+    ytdColorMap[item.symbol] = color;
+    var vals = ytd[item.symbol];
+    if (!vals || vals.length === 0) return;
+
+    var isSelected = selectedSeason.has(item.symbol);
+    var dimmed = selectedSeason.size > 0 && !isSelected;
+
+    datasets.push({
+      label: item.symbol,
+      data: vals.map(function(v, i) { return { x: i, y: v }; }),
+      borderColor: dimmed ? color + '30' : color,
+      backgroundColor: 'transparent',
+      borderWidth: isSelected ? 3 : (selectedSeason.size > 0 ? 1 : 2),
+      pointRadius: 0,
+      tension: 0.15,
+    });
+  });
+
+  var canvas = document.getElementById('ytdChart');
+  if (!canvas) return;
+
+  if (ytdChart) { ytdChart.destroy(); ytdChart = null; }
+
+  if (datasets.length === 0) {
+    return;
+  }
+
+  ytdChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: datasets },
+    plugins: [monthLinesPlugin(monthIdx)],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 200 },
+      onClick: function(evt, elements, chartInstance) {
+        var pts = chartInstance.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+        if (!pts.length) return;
+        var symbol = chartInstance.data.datasets[pts[0].datasetIndex].label;
+        toggleSeason(symbol);
+      },
+      scales: {
+        x: {
+          type: 'linear', min: 0, max: maxX,
+          ticks: { display: false },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+        y: {
+          ticks: {
+            color: 'rgba(0,0,0,0.4)', font: { size: 10 },
+            callback: function(v) { return v.toFixed(0) + '%'; },
+          },
+          grid: {
+            color: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.04)'; },
+          },
+        },
+      },
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+        tooltip: {
+          backgroundColor: '#1e293b', borderColor: '#475569', borderWidth: 1,
+          titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+          callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%'; } }
+        },
+      },
+    },
+  });
+}
+
+function toggleSeason(symbol) {
+  if (selectedSeason.has(symbol)) selectedSeason.delete(symbol);
+  else selectedSeason.add(symbol);
+  buildYTDChart();
+  buildSeasonChart();
+}
+
+function buildSeasonChart() {
+  var season = (ALL_DATA.seasonality && ALL_DATA.seasonality.series) || {};
+  var monthIdx = getMonthEndIdx();
+  var maxX = monthIdx.length ? monthIdx[monthIdx.length - 1] : 252;
+  var wrap = document.getElementById('seasonChartWrap');
+  var canvas = document.getElementById('seasonChart');
+  if (!canvas) return;
+
+  if (seasonChart) { seasonChart.destroy(); seasonChart = null; }
+
+  if (!season || Object.keys(season).length === 0) {
+    if (wrap) {
+      wrap.innerHTML = '<div class="season-empty">Seasonality data is still being computed in the background (this is a 25-year download and can take a few minutes on first load) — check back shortly.</div>';
+    }
+    return;
+  }
+  if (wrap && !document.getElementById('seasonChart')) {
+    wrap.innerHTML = '<canvas id="seasonChart"></canvas>';
+    canvas = document.getElementById('seasonChart');
+  }
+
+  var datasets = [];
+
+  if (season['SPY']) {
+    datasets.push({
+      label: 'SPY (avg)',
+      data: season['SPY'].map(function(v, i) { return { x: i, y: v }; }),
+      borderColor: 'rgba(100,116,139,0.9)',
+      borderDash: [5, 3],
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.15,
+    });
+  }
+
+  selectedSeason.forEach(function(symbol) {
+    if (!season[symbol]) return;
+    datasets.push({
+      label: symbol,
+      data: season[symbol].map(function(v, i) { return { x: i, y: v }; }),
+      borderColor: ytdColorMap[symbol] || '#2563eb',
+      borderWidth: 2.5,
+      pointRadius: 0,
+      tension: 0.15,
+    });
+  });
+
+  seasonChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: datasets },
+    plugins: [monthLinesPlugin(monthIdx)],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 200 },
+      scales: {
+        x: {
+          type: 'linear', min: 0, max: maxX,
+          ticks: {
+            color: 'rgba(0,0,0,0.4)', font: { size: 10 },
+            callback: function(v) {
+              var i = monthIdx.indexOf(Math.round(v));
+              return i >= 0 ? MONTH_LABELS[i] : '';
+            },
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+        y: {
+          ticks: {
+            color: 'rgba(0,0,0,0.4)', font: { size: 10 },
+            callback: function(v) { return v.toFixed(0) + '%'; },
+          },
+          grid: {
+            color: function(ctx) { return ctx.tick && ctx.tick.value === 0 ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.04)'; },
+          },
+        },
+      },
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+        tooltip: {
+          backgroundColor: '#1e293b', borderColor: '#475569', borderWidth: 1,
+          titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+          callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%'; } }
+        },
+      },
+    },
+  });
 }
 
 
