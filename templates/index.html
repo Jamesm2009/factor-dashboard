@@ -894,7 +894,7 @@ function buildYTDChart() {
       maintainAspectRatio: false,
       animation: { duration: 200 },
       onClick: function(evt, elements, chartInstance) {
-        var pts = chartInstance.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+        var pts = chartInstance.getElementsAtEventForMode(evt, 'nearest', { intersect: false }, true);
         if (!pts.length) return;
         var symbol = chartInstance.data.datasets[pts[0].datasetIndex].label;
         toggleSeason(symbol);
