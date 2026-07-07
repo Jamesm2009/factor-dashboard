@@ -335,6 +335,12 @@ def compute_seasonality(ticker_list, years=SEASONALITY_YEARS):
             grp = grp.sort_index()
             if len(grp) < 30:
                 continue
+            # Skip partial years — e.g. the first calendar year of our 25y
+            # download window (which starts mid-year, not Jan 1), or a
+            # ticker's actual inception year. Only count years that genuinely
+            # begin near January 1st.
+            if grp.index.min().dayofyear > 5:
+                continue
             base = grp.iloc[0]
             rets = ((grp / base) - 1) * 100
             by_year[yr] = rets.values.tolist()
