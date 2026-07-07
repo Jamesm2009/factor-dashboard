@@ -345,12 +345,15 @@ def compute_seasonality(ticker_list, years=SEASONALITY_YEARS):
         if not complete:
             continue
 
-        max_days = max(len(v) for v in complete.values())
+        # Trim to the shortest year's length so every averaged point uses the
+        # FULL set of years — avoids a noisy, thin-sample tail near year-end
+        # (previously the last few days were averaged over only 3-5 years,
+        # letting a single bad year drag the whole line down sharply).
+        min_days = min(len(v) for v in complete.values())
         avg = []
-        for day_i in range(max_days):
-            vals = [v[day_i] for v in complete.values() if day_i < len(v)]
-            if len(vals) >= 3:   # require at least 3 years of coverage at this point
-                avg.append(round(sum(vals) / len(vals), 2))
+        for day_i in range(min_days):
+            vals = [v[day_i] for v in complete.values()]
+            avg.append(round(sum(vals) / len(vals), 2))
         if avg:
             series_out[ticker] = avg
 
